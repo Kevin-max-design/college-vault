@@ -1,0 +1,186 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+interface Profile {
+  full_name: string
+  department: string
+  year_of_study: number
+  role: string
+  avatar_url: string | null
+}
+
+interface Listing {
+  id: string
+  title: string
+  price: number
+  type: string
+  status: string
+  created_at: string
+}
+
+interface GameSession {
+  id: string
+  score: number
+  completed_at: string
+  game?: {
+    title: string
+    type: string
+  }
+}
+
+interface ProfileClientProps {
+  profile: Profile
+  email: string
+  listings: Listing[]
+  gameSessions: GameSession[]
+}
+
+export default function ProfileClient({ profile, email, listings, gameSessions }: ProfileClientProps) {
+  const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const totalTrustPoints = gameSessions.reduce((acc, curr) => acc + curr.score, 0)
+  const trustLevel = totalTrustPoints > 500 ? 'Gold' : totalTrustPoints > 100 ? 'Silver' : 'Bronze'
+
+  async function handleLogout() {
+    setIsLoggingOut(true)
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.refresh()
+    router.push('/onboarding/verify')
+  }
+
+  return (
+    <div className="p-5" style={{ paddingBottom: '100px' }}>
+      
+      {/* ── User Header ────────────────────────────────────────── */}
+      <div style={{
+        background: '#00595c',
+        borderRadius: 4,
+        padding: '24px',
+        color: '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        boxShadow: '4px 4px 0 0 #855300',
+        marginBottom: 32,
+        position: 'relative'
+      }}>
+        {/* Decorative Badge */}
+        <div style={{
+          position: 'absolute', top: -12, right: -12,
+          background: '#fea619', width: 40, height: 40, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '2px solid #855300', boxShadow: '2px 2px 0 0 #855300'
+        }}>
+          <span className="material-symbols-outlined" style={{ color: '#684000', fontSize: 20 }}>verified</span>
+        </div>
+
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%', background: '#dbdad5',
+          border: '2px solid #a2f5f9', flexShrink: 0, overflow: 'hidden'
+        }}>
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6e7979' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 32 }}>person</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <h1 style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.8rem', fontWeight: 800, lineHeight: 1.1, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {profile.full_name || 'Anonymous'}
+          </h1>
+          <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {profile.role} • {profile.department} (Yr {profile.year_of_study})
+          </div>
+          <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', opacity: 0.7, marginTop: 4 }}>
+            {email}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Gamification / Trust Stats ───────────────────────────── */}
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', color: '#00595c', letterSpacing: '0.05em', marginBottom: 12 }}>
+          Trust & Gamification
+        </h2>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div style={{ background: '#fbf9f4', border: '2px solid #00595c', padding: 16, borderRadius: 2, boxShadow: '3px 3px 0 0 #00595c' }}>
+            <div style={{ color: '#6e7979', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Total Points</div>
+            <div style={{ fontFamily: 'var(--font-newsreader)', fontSize: '2rem', fontWeight: 800, color: '#00595c', lineHeight: 1 }}>
+              {totalTrustPoints}
+            </div>
+          </div>
+
+          <div style={{ background: '#fbf9f4', border: '2px solid #855300', padding: 16, borderRadius: 2, boxShadow: '3px 3px 0 0 #855300' }}>
+            <div style={{ color: '#6e7979', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Trust Level</div>
+            <div style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.6rem', fontWeight: 800, color: '#855300', lineHeight: 1.2 }}>
+              {trustLevel}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Active Listings ──────────────────────────────────────── */}
+      <div style={{ marginBottom: 40 }}>
+        <h2 style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', color: '#00595c', letterSpacing: '0.05em', marginBottom: 12 }}>
+          My Vault Listings
+        </h2>
+        
+        {listings.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', background: '#f0eee9', borderRadius: 2, color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem' }}>
+            You haven't listed any items yet.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {listings.map(listing => (
+              <div key={listing.id} style={{
+                background: '#fbf9f4', border: '2px solid #bec9c9', padding: '12px 16px', borderRadius: 2,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.1rem', color: '#1b1c19' }}>{listing.title}</div>
+                  <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', color: '#6e7979', marginTop: 2, textTransform: 'uppercase' }}>
+                    {listing.type} • {listing.status}
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 800, color: '#00595c' }}>
+                  ${listing.price.toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Action Buttons ─────────────────────────────────────── */}
+      <div className="flex flex-col gap-3">
+        <button className="btn-amber" style={{ width: '100%', background: '#f0eee9', color: '#1b1c19', border: '2px solid #bec9c9', boxShadow: 'none' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit</span>
+          <span>Edit Profile</span>
+        </button>
+
+        <button 
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          style={{
+            width: '100%', padding: '12px', background: 'transparent', border: '2px solid #ba1a1a', 
+            color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.05em', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            cursor: 'pointer'
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>logout</span>
+          <span>{isLoggingOut ? 'Logging out...' : 'Log Out'}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
