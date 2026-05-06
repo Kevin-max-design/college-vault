@@ -2,84 +2,35 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
-import ClassroomsClient, { Classroom, Project } from './ClassroomsClient'
+import ClassroomsClient, { Classroom } from './ClassroomsClient'
 
-/* ── Seed / fallback data shown when DB tables don't exist yet ── */
-const SEED_CLASSROOMS: Classroom[] = [
-  {
-    id: 'seed-1',
-    name: 'Data Structures & Algorithms',
-    subject_type: 'core',
-    description: 'Focus on graph theory and dynamic programming patterns this week. TA sessions available.',
-    doubt_count: 12,
-    member_count: 48,
-    is_active_doubt: true,
-    year: 3,
-  },
-  {
-    id: 'seed-2',
-    name: 'Operating Systems',
-    subject_type: 'core',
-    description: 'Memory management modules ongoing.',
-    doubt_count: 3,
-    member_count: 42,
-    is_active_doubt: false,
-    year: 3,
-  },
-  {
-    id: 'seed-3',
-    name: 'Cloud Computing',
-    subject_type: 'elective',
-    description: 'AWS practicals starting tomorrow.',
-    doubt_count: 0,
-    member_count: 30,
-    is_active_doubt: false,
-    year: 4,
-  },
-  {
-    id: 'seed-4',
-    name: 'Machine Learning',
-    subject_type: 'elective',
-    description: 'Neural networks and backpropagation deep dive this sprint.',
-    doubt_count: 7,
-    member_count: 25,
-    is_active_doubt: true,
-    year: 4,
-  },
-]
-
-const SEED_PROJECTS: Project[] = [
-  {
-    id: 'proj-1',
-    name: 'Web-based DBMS',
-    phase: 'Minor Project Phase I',
-    description: 'Team Alpha — Sprint 2 active.',
-    status: 'on_track',
-    icon: 'architecture',
-    header_color: 'teal',
-    year: 3,
-  },
-  {
-    id: 'proj-2',
-    name: 'Linux Kernel Module',
-    phase: 'Open Source Contrib',
-    description: 'Reviewing patch submission guidelines.',
-    status: 'blocked',
-    icon: 'code',
-    header_color: 'amber',
-    year: 4,
-  },
-]
-
-/* ── Helpers ─────────────────────────────────────────────────── */
-function mapStatus(raw: string): 'on_track' | 'blocked' | 'at_risk' {
-  if (raw === 'blocked') return 'blocked'
-  if (raw === 'at_risk')  return 'at_risk'
-  return 'on_track'
-}
-
-function mapHeaderColor(i: number): 'teal' | 'amber' {
-  return i % 2 === 0 ? 'teal' : 'amber'
+/* ── Per-year seed data ─────────────────────────────────────────── */
+const SEED_CLASSROOMS: Record<number, Classroom[]> = {
+  1: [
+    { id: 'y1-1', name: 'Engineering Mathematics I', subject_type: 'core', description: 'Calculus, matrices, and differential equations foundations.', doubt_count: 5, member_count: 60, is_active_doubt: true, year: 1 },
+    { id: 'y1-2', name: 'Engineering Physics', subject_type: 'core', description: 'Wave optics and quantum mechanics introduction.', doubt_count: 2, member_count: 58, is_active_doubt: false, year: 1 },
+    { id: 'y1-3', name: 'Programming in C', subject_type: 'core', description: 'First principles of programming logic and C syntax.', doubt_count: 18, member_count: 62, is_active_doubt: true, year: 1 },
+    { id: 'y1-4', name: 'Basic Electronics', subject_type: 'elective', description: 'Diodes, transistors, and basic circuit design.', doubt_count: 0, member_count: 45, is_active_doubt: false, year: 1 },
+  ],
+  2: [
+    { id: 'y2-1', name: 'Data Structures & Algorithms', subject_type: 'core', description: 'Arrays, linked lists, trees, graphs, and sorting algorithms.', doubt_count: 12, member_count: 48, is_active_doubt: true, year: 2 },
+    { id: 'y2-2', name: 'Object-Oriented Programming', subject_type: 'core', description: 'Java classes, inheritance, polymorphism and design patterns.', doubt_count: 3, member_count: 50, is_active_doubt: false, year: 2 },
+    { id: 'y2-3', name: 'Computer Organization', subject_type: 'core', description: 'CPU architecture, memory hierarchy, instruction sets.', doubt_count: 0, member_count: 42, is_active_doubt: false, year: 2 },
+    { id: 'y2-4', name: 'Discrete Mathematics', subject_type: 'core', description: 'Logic, sets, relations, and graph theory.', doubt_count: 7, member_count: 44, is_active_doubt: true, year: 2 },
+  ],
+  3: [
+    { id: 'y3-1', name: 'Operating Systems', subject_type: 'core', description: 'Process management, memory management, and file systems.', doubt_count: 3, member_count: 42, is_active_doubt: false, year: 3 },
+    { id: 'y3-2', name: 'Database Management Systems', subject_type: 'core', description: 'ER models, SQL, transactions and normalization.', doubt_count: 9, member_count: 38, is_active_doubt: true, year: 3 },
+    { id: 'y3-3', name: 'Computer Networks', subject_type: 'core', description: 'OSI model, TCP/IP, routing algorithms.', doubt_count: 4, member_count: 35, is_active_doubt: false, year: 3 },
+    { id: 'y3-4', name: 'Machine Learning', subject_type: 'elective', description: 'Neural networks and backpropagation deep dive.', doubt_count: 7, member_count: 25, is_active_doubt: true, year: 3 },
+    { id: 'y3-5', name: 'Cloud Computing', subject_type: 'elective', description: 'AWS practicals starting this week.', doubt_count: 0, member_count: 30, is_active_doubt: false, year: 3 },
+  ],
+  4: [
+    { id: 'y4-1', name: 'Distributed Systems', subject_type: 'core', description: 'CAP theorem, consistency models, microservices.', doubt_count: 2, member_count: 28, is_active_doubt: false, year: 4 },
+    { id: 'y4-2', name: 'Compiler Design', subject_type: 'core', description: 'Lexical analysis, parsing, and code generation.', doubt_count: 6, member_count: 30, is_active_doubt: true, year: 4 },
+    { id: 'y4-3', name: 'Information Security', subject_type: 'elective', description: 'Cryptography, network security, ethical hacking overview.', doubt_count: 1, member_count: 22, is_active_doubt: false, year: 4 },
+    { id: 'y4-4', name: 'Major Project Seminar', subject_type: 'elective', description: 'Final year project discussions and progress reviews.', doubt_count: 0, member_count: 35, is_active_doubt: false, year: 4 },
+  ],
 }
 
 const DEPT_LABELS: Record<string, string> = {
@@ -93,16 +44,14 @@ const DEPT_LABELS: Record<string, string> = {
   cse:         'Computer Science',
 }
 
-/* ── Page (Server Component) ─────────────────────────────────── */
+/* ── Page (Server Component) ─────────────────────────────────────── */
 export default async function ClassroomsPage() {
   const cookieStore = await cookies()
   const supabase    = createClient(cookieStore)
 
-  /* Auth check */
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/onboarding/verify')
 
-  /* Fetch profile */
   const { data: profile } = await supabase
     .from('profiles')
     .select('full_name, department, year_of_study, avatar_url')
@@ -110,7 +59,7 @@ export default async function ClassroomsPage() {
     .single()
 
   const department  = profile?.department  ?? 'cse'
-  const yearOfStudy = (profile?.year_of_study ?? 3) - 1   // 0-based index
+  const userYear    = profile?.year_of_study ?? 1
   const avatarUrl   = profile?.avatar_url ?? null
   const fullName    = profile?.full_name ?? ''
   const initials    = fullName
@@ -122,59 +71,40 @@ export default async function ClassroomsPage() {
 
   const deptLabel = DEPT_LABELS[department] ?? 'Computer Science'
 
-  /* ── Fetch classrooms ─────────────────────────────────────── */
-  let classrooms: Classroom[] = SEED_CLASSROOMS
-  let projects:   Project[]   = SEED_PROJECTS
+  /* ── Try to fetch real classrooms per year from DB ─────────────── */
+  let classroomsByYear: Record<number, Classroom[]> = SEED_CLASSROOMS
 
   try {
     const { data: rawClassrooms, error: clsErr } = await supabase
       .from('classrooms')
-      .select(`
-        id, name, subject_type, description, year,
-        classroom_members(count),
-        classroom_doubts(count)
-      `)
+      .select(`id, name, subject_type, description, year, classroom_members(count)`)
       .eq('department', department)
       .order('created_at', { ascending: true })
 
     if (!clsErr && rawClassrooms && rawClassrooms.length > 0) {
-      classrooms = rawClassrooms.map((row: Record<string, unknown>) => {
-        const doubtCount = (row.classroom_doubts as Array<{ count: number }>)?.[0]?.count ?? 0
-        const memberCount = (row.classroom_members as Array<{ count: number }>)?.[0]?.count ?? 0
-        return {
-          id:               row.id as string,
-          name:             row.name as string,
-          subject_type:     (row.subject_type as 'core' | 'elective') ?? 'core',
-          description:      row.description as string ?? '',
-          doubt_count:      doubtCount,
-          member_count:     memberCount,
-          is_active_doubt:  doubtCount > 0,
-          year:             (row.year as number) ?? 1,
+      const grouped: Record<number, Classroom[]> = { 1: [], 2: [], 3: [], 4: [] }
+      for (const row of rawClassrooms as any[]) {
+        const yr = row.year ?? 1
+        if (grouped[yr]) {
+          grouped[yr].push({
+            id: row.id,
+            name: row.name,
+            subject_type: row.subject_type ?? 'core',
+            description: row.description ?? '',
+            doubt_count: 0,
+            member_count: row.classroom_members?.[0]?.count ?? 0,
+            is_active_doubt: false,
+            year: yr,
+          })
         }
-      })
-    }
-
-    /* ── Fetch projects ───────────────────────────────────────── */
-    const { data: rawProjects, error: projErr } = await supabase
-      .from('projects')
-      .select('id, name, phase, description, status, icon, year')
-      .eq('department', department)
-      .order('created_at', { ascending: true })
-
-    if (!projErr && rawProjects && rawProjects.length > 0) {
-      projects = rawProjects.map((row: Record<string, unknown>, i: number) => ({
-        id:           row.id as string,
-        name:         row.name as string,
-        phase:        row.phase as string ?? 'Project',
-        description:  row.description as string ?? '',
-        status:       mapStatus(row.status as string ?? 'on_track'),
-        icon:         row.icon as string ?? 'architecture',
-        header_color: mapHeaderColor(i),
-        year:         (row.year as number) ?? 1,
-      }))
+      }
+      // Only override if we got real data
+      if (Object.values(grouped).some(arr => arr.length > 0)) {
+        classroomsByYear = grouped
+      }
     }
   } catch {
-    // Tables might not exist yet — seed data is used as fallback
+    // Fallback to seed data
   }
 
   return (
@@ -184,10 +114,9 @@ export default async function ClassroomsPage() {
       userInitials={initials}
     >
       <ClassroomsClient
-        classrooms={classrooms}
-        projects={projects}
+        classroomsByYear={classroomsByYear}
         department={deptLabel}
-        selectedYear={yearOfStudy}
+        userYear={userYear}
       />
     </AppShell>
   )

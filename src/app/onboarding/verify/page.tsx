@@ -91,7 +91,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
 
       <div className="pt-3">
         <button type="submit" className="btn-amber" disabled={isPending}>
-          <span>{isPending ? 'Sending…' : 'Send OTP'}</span>
+          <span>{isPending ? 'Sending…' : 'Log In / Sign Up'}</span>
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>send</span>
         </button>
       </div>
@@ -237,9 +237,9 @@ export default function VerifyPage() {
     setStep('otp')
   }
 
-  const headline = step === 'email' ? <>Trust is<br />earned.</> : <>Check your<br />inbox.</>
+  const headline = step === 'email' ? <>Welcome to<br />CampusVault.</> : <>Check your<br />inbox.</>
   const subtitle = step === 'email'
-    ? 'Verify your student status to access the campus gazette network.'
+    ? 'Enter your .edu email to log in or create a new account.'
     : 'Enter the code we just emailed you.'
 
   return (

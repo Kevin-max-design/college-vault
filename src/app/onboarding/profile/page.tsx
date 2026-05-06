@@ -54,7 +54,7 @@ export default function ProfileSetupPage() {
 
     if (!isConfigured) {
       // Demo mode — skip Supabase, go straight to vault
-      router.push('/vault')
+      router.push('/classrooms')
       return
     }
 
@@ -107,7 +107,7 @@ export default function ProfileSetupPage() {
     if (profileError) {
       setError(profileError.message)
     } else {
-      router.push('/vault')
+      router.push('/classrooms')
     }
   }
 

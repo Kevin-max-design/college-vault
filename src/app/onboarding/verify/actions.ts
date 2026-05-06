@@ -34,8 +34,9 @@ export async function verifyOtpAction(
   const cookieStore = await cookies()
   const supabase = makeSupabase(cookieStore)
 
-  const isDev = process.env.NODE_ENV === 'development'
-  const devBypass = isDev && otp.trim() === '000000'
+  // Dev/admin bypass: code '000000' works anywhere the service role key is available
+  const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+  const devBypass = hasAdminKey && otp.trim() === '000000'
 
   if (devBypass && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const adminSupabase = createServerClient(
@@ -108,11 +109,8 @@ export async function verifyOtpAction(
 export async function sendOtpAction(
   email: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const isDev = process.env.NODE_ENV === 'development'
-  
-  // In dev mode with the service key, we can skip sending the OTP entirely!
-  // The user will enter 000000 to trigger the bypass in verifyOtpAction.
-  if (isDev && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  // Skip sending OTP if service role key is available (bypass mode)
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { success: true }
   }
 

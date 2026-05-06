@@ -10,10 +10,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/bulletin',   label: 'Bulletin',  icon: 'newspaper'   },
-  { href: '/classrooms', label: 'Classes',   icon: 'school'      },
-  { href: '/projects',   label: 'Vault',     icon: 'inventory_2' },
-  { href: '/profile',    label: 'Profile',   icon: 'person'      },
+  { href: '/bulletin', label: 'Bulletin', icon: 'newspaper' },
+  { href: '/classrooms', label: 'Classes', icon: 'school' },
+  { href: '/projects', label: 'Projects', icon: 'architecture' },
+  { href: '/profile', label: 'Profile', icon: 'person' },
 ]
 
 interface AppShellProps {

@@ -34,7 +34,7 @@ interface ProjectsClientProps {
 const CATEGORIES = ['all', 'books', 'electronics', 'lab', 'clothing', 'other'] as const
 const TYPES = ['all', 'buy', 'rent'] as const
 
-export default function ProjectsClient({ currentUser, initialListings }: ProjectsClientProps) {
+export default function VaultClient({ currentUser, initialListings }: ProjectsClientProps) {
   const [listings, setListings] = useState<Listing[]>(initialListings)
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [activeType, setActiveType] = useState<string>('all')
@@ -168,7 +168,7 @@ export default function ProjectsClient({ currentUser, initialListings }: Project
         {filteredListings.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6e7979' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>inventory_2</span>
-            <p style={{ fontFamily: 'var(--font-jakarta)' }}>No projects or items found.</p>
+            <p style={{ fontFamily: 'var(--font-jakarta)' }}>No items found. Try adjusting your filters.</p>
           </div>
         ) : (
           <div className="grid gap-6">
@@ -274,18 +274,45 @@ export default function ProjectsClient({ currentUser, initialListings }: Project
                       </span>
                     </div>
 
-                    <button style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#0D7377',
-                      fontFamily: 'var(--font-jakarta)',
-                      fontWeight: 700,
-                      fontSize: '0.8rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      cursor: 'pointer'
-                    }}>
+                    <button 
+                      onClick={async () => {
+                        if (listing.seller_id === currentUser.id) {
+                          alert('This is your own listing!')
+                          return
+                        }
+                        try {
+                          const res = await fetch('/api/messages', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              listing_id: listing.id,
+                              receiver_id: listing.seller_id,
+                              content: `Hi! I'm interested in your listing: "${listing.title}"`,
+                            }),
+                          })
+                          if (res.ok) {
+                            alert(`Message sent to ${listing.seller?.full_name || 'the seller'}!`)
+                          } else {
+                            const err = await res.json()
+                            alert(err.error || 'Could not send message.')
+                          }
+                        } catch {
+                          alert('Network error — please try again.')
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0D7377',
+                        fontFamily: 'var(--font-jakarta)',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        cursor: 'pointer'
+                      }}
+                    >
                       Message
                       <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chat_bubble</span>
                     </button>
