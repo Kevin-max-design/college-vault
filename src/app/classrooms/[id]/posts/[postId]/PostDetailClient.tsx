@@ -702,7 +702,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
-  }, [classroom.id, userRole, classroom.department])
+  }, [classroom.id])
 
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
