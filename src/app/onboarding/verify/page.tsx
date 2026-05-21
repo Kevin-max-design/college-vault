@@ -120,7 +120,7 @@ function OtpStep({ email, onBack }: { email: string; onBack: () => void }) {
         return
       }
       router.refresh()
-      router.push('/onboarding/role')
+      router.push('/onboarding/profile')
     })
   }
 
