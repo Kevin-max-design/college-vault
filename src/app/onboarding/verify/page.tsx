@@ -41,17 +41,18 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
     e.preventDefault()
     setError('')
 
-    if (!email.toLowerCase().endsWith('.edu')) {
-      setError('Only .edu email addresses are allowed for students.')
+    const emailLower = email.toLowerCase().trim()
+    if (!emailLower.endsWith('@rgmcet.edu.in') && !emailLower.endsWith('.rgmcet.edu.in')) {
+      setError('Only official RGMCET institutional email addresses (@rgmcet.edu.in) are allowed.')
       return
     }
 
     startTransition(async () => {
-      const result = await sendOtpAction(email)
+      const result = await sendOtpAction(emailLower)
       if (result?.error) {
         setError(result.error)
       } else {
-        onOtpSent(email)
+        onOtpSent(emailLower)
       }
     })
   }
@@ -60,7 +61,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="flex flex-col gap-1.5">
         <label className="label-caps" htmlFor="college-email" style={{ color: '#00595c' }}>
-          College Email Address
+          RGMCET Email Address
         </label>
 
         <input
@@ -68,7 +69,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="student@university.edu"
+          placeholder="student@rgmcet.edu.in"
           required
           className="cv-input"
         />
@@ -77,7 +78,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
           <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: '#fea619', fontSize: 18, fontVariationSettings: '"FILL" 1' }}>info</span>
           <p className="text-sm leading-snug" style={{ color: '#3e4949', fontFamily: 'var(--font-jakarta)' }}>
             Student access is strictly limited to verified{' '}
-            <strong style={{ color: '#00595c', fontWeight: 700 }}>.edu</strong> email addresses.
+            <strong style={{ color: '#00595c', fontWeight: 700 }}>@rgmcet.edu.in</strong> email addresses.
           </p>
         </div>
 
@@ -260,7 +261,7 @@ function AdminStep({ onBack }: { onBack: () => void }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="admin@university.edu"
+          placeholder="admin@rgmcet.edu.in"
           required
           className="cv-input"
         />
@@ -325,7 +326,7 @@ export default function VerifyPage() {
 
   // Determine headline based on mode and step
   let headline = <>Welcome to<br />CampusVault.</>
-  let subtitle = 'Enter your .edu email to log in or create a new account.'
+  let subtitle = 'Enter your @rgmcet.edu.in email to log in or create your account.'
 
   if (mode === 'admin') {
     headline = <>Admin<br />Portal.</>

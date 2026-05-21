@@ -6,16 +6,32 @@ import Image from 'next/image'
 import { isConfigured } from '@/lib/supabase/client'
 
 const DEPARTMENTS = [
-  { value: 'arts', label: 'Arts & Humanities' },
-  { value: 'sciences', label: 'Natural Sciences' },
-  { value: 'engineering', label: 'Engineering & Tech' },
-  { value: 'business', label: 'Business & Economics' },
-  { value: 'law', label: 'Law & Political Science' },
-  { value: 'medicine', label: 'Medicine & Health Sciences' },
-  { value: 'education', label: 'Education' },
+  { value: 'CSE', label: 'Computer Science & Engineering (CSE)' },
+  { value: 'CSE-DS', label: 'CSE (Data Science)' },
+  { value: 'CSE-AIML', label: 'CSE (AI & Machine Learning)' },
+  { value: 'CSE-CS', label: 'CSE (Cyber Security)' },
+  { value: 'CSBS', label: 'CSE & Business Systems (CSBS)' },
+  { value: 'ECE', label: 'Electronics & Communication Engineering (ECE)' },
+  { value: 'EEE', label: 'Electrical & Electronics Engineering (EEE)' },
+  { value: 'ME', label: 'Mechanical Engineering (ME)' },
+  { value: 'CE', label: 'Civil Engineering (CE)' },
+  { value: 'MCA', label: 'Master of Computer Applications (MCA)' },
+  { value: 'MBA', label: 'Management Studies (MBA)' },
+  { value: 'MATHS', label: 'Mathematics (S&H)' },
+  { value: 'PHY', label: 'Physics (S&H)' },
+  { value: 'CHEM', label: 'Chemistry (S&H)' },
+  { value: 'ENG', label: 'English (S&H)' },
 ]
 
-const YEARS = [1, 2, 3, 4]
+const getAvailableYears = (dept: string) => {
+  if (['MATHS', 'PHY', 'CHEM', 'ENG'].includes(dept)) {
+    return [1]
+  }
+  if (['MCA', 'MBA'].includes(dept)) {
+    return [1, 2]
+  }
+  return [1, 2, 3, 4]
+}
 
 export default function ProfileSetupPage() {
   const [fullName, setFullName] = useState('')
@@ -285,7 +301,14 @@ export default function ProfileSetupPage() {
                   id="department"
                   className="cv-input"
                   value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  onChange={(e) => {
+                    const newDept = e.target.value
+                    setDepartment(newDept)
+                    const allowed = getAvailableYears(newDept)
+                    if (year && !allowed.includes(year)) {
+                      setYear(null)
+                    }
+                  }}
                   style={{ cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}
                 >
                   <option value="" disabled>Select your discipline</option>
@@ -303,7 +326,7 @@ export default function ProfileSetupPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <label className="label-caps" style={{ color: '#00595c' }}>Year of Study</label>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                {YEARS.map((y) => (
+                {getAvailableYears(department).map((y) => (
                   <button
                     key={y}
                     type="button"

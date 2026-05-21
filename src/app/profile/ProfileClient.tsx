@@ -36,14 +36,21 @@ interface ProfileClientProps {
 }
 
 const DEPARTMENTS = [
-  { value: 'arts', label: 'Arts & Humanities' },
-  { value: 'sciences', label: 'Natural Sciences' },
-  { value: 'engineering', label: 'Engineering & Tech' },
-  { value: 'business', label: 'Business & Economics' },
-  { value: 'law', label: 'Law & Political Science' },
-  { value: 'medicine', label: 'Medicine & Health Sciences' },
-  { value: 'education', label: 'Education' },
-  { value: 'cse', label: 'Computer Science' },
+  { value: 'CSE', label: 'Computer Science & Engineering (CSE)' },
+  { value: 'CSE-DS', label: 'CSE (Data Science)' },
+  { value: 'CSE-AIML', label: 'CSE (AI & Machine Learning)' },
+  { value: 'CSE-CS', label: 'CSE (Cyber Security)' },
+  { value: 'CSBS', label: 'CSE & Business Systems (CSBS)' },
+  { value: 'ECE', label: 'Electronics & Communication Engineering (ECE)' },
+  { value: 'EEE', label: 'Electrical & Electronics Engineering (EEE)' },
+  { value: 'ME', label: 'Mechanical Engineering (ME)' },
+  { value: 'CE', label: 'Civil Engineering (CE)' },
+  { value: 'MCA', label: 'Master of Computer Applications (MCA)' },
+  { value: 'MBA', label: 'Management Studies (MBA)' },
+  { value: 'MATHS', label: 'Mathematics (S&H)' },
+  { value: 'PHY', label: 'Physics (S&H)' },
+  { value: 'CHEM', label: 'Chemistry (S&H)' },
+  { value: 'ENG', label: 'English (S&H)' },
 ]
 
 export default function ProfileClient({ profile, email, listings, gameSessions }: ProfileClientProps) {
@@ -259,14 +266,25 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
               </div>
               <div>
                 <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Department</label>
-                <select className="cv-input" value={editDept} onChange={e => setEditDept(e.target.value)}>
+                <select className="cv-input" value={editDept} onChange={e => {
+                  const newDept = e.target.value
+                  setEditDept(newDept)
+                  const allowed = ['MATHS', 'PHY', 'CHEM', 'ENG'].includes(newDept)
+                    ? [1]
+                    : ['MCA', 'MBA'].includes(newDept) ? [1, 2] : [1, 2, 3, 4]
+                  if (!allowed.includes(editYear)) {
+                    setEditYear(1)
+                  }
+                }}>
                   {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Year of Study</label>
                 <select className="cv-input" value={editYear} onChange={e => setEditYear(Number(e.target.value))}>
-                  {[1, 2, 3, 4].map(y => <option key={y} value={y}>Year {y}</option>)}
+                  {(['MATHS', 'PHY', 'CHEM', 'ENG'].includes(editDept)
+                    ? [1]
+                    : ['MCA', 'MBA'].includes(editDept) ? [1, 2] : [1, 2, 3, 4]).map(y => <option key={y} value={y}>Year {y}</option>)}
                 </select>
               </div>
               {editError && <p style={{ color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem' }}>{editError}</p>}

@@ -28,15 +28,33 @@ export interface Project {
 }
 
 type Filter = 'all' | 'core' | 'elective'
-const YEARS = [1, 2, 3, 4] as const
 const YEAR_LABELS: Record<number, string> = {
   1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year',
+}
+
+const DEPT_YEARS: Record<string, number[]> = {
+  CSE: [1, 2, 3, 4],
+  'CSE-DS': [1, 2, 3, 4],
+  'CSE-AIML': [1, 2, 3, 4],
+  'CSE-CS': [1, 2, 3, 4],
+  CSBS: [1, 2, 3, 4],
+  ECE: [1, 2, 3, 4],
+  EEE: [1, 2, 3, 4],
+  ME: [1, 2, 3, 4],
+  CE: [1, 2, 3, 4],
+  MCA: [1, 2],
+  MBA: [1, 2],
+  MATHS: [1],
+  PHY: [1],
+  CHEM: [1],
+  ENG: [1]
 }
 
 interface Props {
   classroomsByYear: Record<number, Classroom[]>
   department: string
   userYear: number
+  departmentCode?: string
 }
 
 /* ── Anonymous Doubt Box ────────────────────────────────────────── */
@@ -238,8 +256,13 @@ const PROJECT_HUBS: HubProject[] = [
 ]
 
 /* ── Main Component ─────────────────────────────────────────────── */
-export default function ClassroomsClient({ classroomsByYear, department, userYear }: Props) {
-  const [selectedYear, setSelectedYear] = useState<number>(userYear ?? 1)
+export default function ClassroomsClient({ classroomsByYear, department, userYear, departmentCode }: Props) {
+  const allowedYears = departmentCode && DEPT_YEARS[departmentCode]
+    ? DEPT_YEARS[departmentCode]
+    : [1, 2, 3, 4]
+
+  const defaultYear = allowedYears.includes(userYear) ? userYear : allowedYears[0] ?? 1
+  const [selectedYear, setSelectedYear] = useState<number>(defaultYear)
   const [filter, setFilter] = useState<Filter>('all')
 
   const classrooms = classroomsByYear[selectedYear] ?? []
@@ -255,7 +278,7 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
 
       {/* ── Year Pill Tabs ──────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap mb-6">
-        {YEARS.map(yr => {
+        {allowedYears.map(yr => {
           const isActive = selectedYear === yr
           return (
             <button

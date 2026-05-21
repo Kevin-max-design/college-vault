@@ -67,9 +67,9 @@ function buildTree(posts: Post[]): Post[] {
 }
 
 /* ── Inline Reply Input ─────────────────────────────────────────────── */
-function ReplyInput({ classroomId, parentId, onPosted, onCancel }: {
+function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom }: {
   classroomId: string; parentId: string
-  onPosted: (p: Post) => void; onCancel: () => void
+  onPosted: (p: Post) => void; onCancel: () => void; isSeedClassroom?: boolean
 }) {
   const [text, setText] = useState('')
   const [pending, start] = useTransition()
@@ -78,6 +78,22 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel }: {
     e.preventDefault()
     if (!text.trim()) return
     start(async () => {
+      if (isSeedClassroom) {
+        const mockReply: Post = {
+          id: Math.random().toString(36).substring(2, 11),
+          content: text.trim(),
+          type: 'thread',
+          resolved: false,
+          created_at: new Date().toISOString(),
+          parent_id: parentId,
+          author: { id: 'mock-user', full_name: 'You (Student)', avatar_url: null, role: 'student' },
+          reactions: [],
+        }
+        onPosted(mockReply)
+        setText('')
+        onCancel()
+        return
+      }
       const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,11 +135,12 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel }: {
 }
 
 /* ── Thread Node (recursive) ────────────────────────────────────────── */
-function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, onReact }: {
+function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, onReact, isSeedClassroom }: {
   post: Post; depth: number; classroomId: string; userId: string
   onNewReply: (parentId: string, newPost: Post) => void
   onResolve: (id: string) => void
   onReact: (id: string) => void
+  isSeedClassroom?: boolean
 }) {
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
@@ -245,6 +262,7 @@ function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, o
             parentId={post.id}
             onPosted={newPost => { onNewReply(post.id, newPost); setShowReplyBox(false) }}
             onCancel={() => setShowReplyBox(false)}
+            isSeedClassroom={isSeedClassroom}
           />
         )}
       </div>
@@ -260,6 +278,7 @@ function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, o
           onNewReply={onNewReply}
           onResolve={onResolve}
           onReact={onReact}
+          isSeedClassroom={isSeedClassroom}
         />
       ))}
     </div>
@@ -267,8 +286,8 @@ function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, o
 }
 
 /* ── Post Doubt Modal ───────────────────────────────────────────────── */
-function PostDoubtModal({ classroomId, userRole, onClose, onPosted }: {
-  classroomId: string; userRole: string; onClose: () => void; onPosted: (p: Post) => void
+function PostDoubtModal({ classroomId, userRole, onClose, onPosted, isSeedClassroom }: {
+  classroomId: string; userRole: string; onClose: () => void; onPosted: (p: Post) => void; isSeedClassroom?: boolean
 }) {
   const [content, setContent] = useState('')
   const [type, setType] = useState<'doubt' | 'thread' | 'material' | 'announcement'>('doubt')
@@ -286,6 +305,21 @@ function PostDoubtModal({ classroomId, userRole, onClose, onPosted }: {
     if (!content.trim()) { setError('Please enter content.'); return }
     setError('')
     start(async () => {
+      if (isSeedClassroom) {
+        const mockPost: Post = {
+          id: Math.random().toString(36).substring(2, 11),
+          content: content.trim(),
+          type,
+          resolved: false,
+          created_at: new Date().toISOString(),
+          parent_id: null,
+          author: { id: 'mock-user', full_name: 'You (Student)', avatar_url: null, role: userRole },
+          reactions: [],
+        }
+        onPosted(mockPost)
+        onClose()
+        return
+      }
       const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: content.trim(), type }),
@@ -369,6 +403,25 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
 
+  // Load posts from localStorage if it's a seed classroom
+  useEffect(() => {
+    if (isSeedClassroom) {
+      const stored = localStorage.getItem(`cv_seed_posts_${classroom.id}`)
+      if (stored) {
+        try {
+          setPosts(JSON.parse(stored))
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+  }, [classroom.id, isSeedClassroom])
+
+  const saveLocalPosts = (updatedPosts: Post[]) => {
+    setPosts(updatedPosts)
+    localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
+  }
+
   // Auto-enroll on first visit and get seat code
   useEffect(() => {
     fetch(`/api/classrooms/${classroom.id}/enroll`, { method: 'POST' })
@@ -387,10 +440,20 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
         return { ...p, replies: insertInto(p.replies ?? []) }
       })
     }
-    setPosts(prev => insertInto(prev))
+    const updated = insertInto(posts)
+    if (isSeedClassroom) {
+      saveLocalPosts(updated)
+    } else {
+      setPosts(updated)
+    }
   }
 
   async function handleResolve(postId: string) {
+    if (isSeedClassroom) {
+      const updated = posts.map(p => p.id === postId ? { ...p, resolved: !p.resolved } : p)
+      saveLocalPosts(updated)
+      return
+    }
     const res = await fetch(`/api/posts/${postId}/resolve`, { method: 'PATCH' })
     if (res.ok) {
       const updated = await res.json()
@@ -399,6 +462,19 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   async function handleReact(postId: string) {
+    if (isSeedClassroom) {
+      const updated = posts.map(p => {
+        if (p.id !== postId) return p
+        const exists = p.reactions.some(r => r.user_id === userId)
+        if (exists) {
+          return { ...p, reactions: p.reactions.filter(r => r.user_id !== userId) }
+        } else {
+          return { ...p, reactions: [...p.reactions, { emoji: '👍', user_id: userId }] }
+        }
+      })
+      saveLocalPosts(updated)
+      return
+    }
     const res = await fetch(`/api/posts/${postId}/react`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emoji: '👍' }),
@@ -414,6 +490,11 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   function handlePosted(newPost: Post) {
+    if (isSeedClassroom) {
+      const updated = [{ ...newPost, replies: [] }, ...posts]
+      saveLocalPosts(updated)
+      return
+    }
     setPosts(prev => [{ ...newPost, replies: [] }, ...prev])
     router.refresh()
   }
@@ -484,7 +565,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#855300', fontVariationSettings: '"FILL" 1' }}>info</span>
-          <span><strong>Demo classroom</strong> — posts are disabled. Create a real classroom to interact.</span>
+          <span>✨ <strong>Demo classroom</strong> — posts and interactions are simulated and saved locally in your browser. To collaborate live, create a real classroom in the Admin Portal.</span>
         </div>
       )}
 
@@ -494,17 +575,15 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           Doubts &amp; Threads
         </h2>
         <button
-          onClick={() => !isSeedClassroom && setShowModal(true)}
-          disabled={isSeedClassroom}
-          title={isSeedClassroom ? 'Demo classroom — posting disabled' : undefined}
+          onClick={() => setShowModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
-            background: isSeedClassroom ? '#e0ddd8' : '#fea619',
-            border: '2px solid #00595c', color: isSeedClassroom ? '#6e7979' : '#684000',
+            background: '#fea619',
+            border: '2px solid #00595c', color: '#684000',
             fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: isSeedClassroom ? 'not-allowed' : 'pointer',
-            boxShadow: isSeedClassroom ? 'none' : '3px 3px 0 0 #00595c',
+            cursor: 'pointer',
+            boxShadow: '3px 3px 0 0 #00595c',
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
@@ -547,6 +626,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
               onNewReply={addReply}
               onResolve={handleResolve}
               onReact={handleReact}
+              isSeedClassroom={isSeedClassroom}
             />
           ))}
         </div>
@@ -558,6 +638,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           userRole={userRole}
           onClose={() => setShowModal(false)}
           onPosted={handlePosted}
+          isSeedClassroom={isSeedClassroom}
         />
       )}
     </div>

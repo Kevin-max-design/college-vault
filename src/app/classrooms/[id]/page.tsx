@@ -3,34 +3,37 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
 import ClassroomDetailClient from './ClassroomDetailClient'
+import { SEED_CLASSROOMS as NESTED_SEED, DEPT_LABELS } from '../data'
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-/* ── Seed fallback classrooms (matches ClassroomsClient seed data) ── */
+/* ── Flattened seed classrooms (matches ClassroomsClient seed data) ── */
 const SEED_CLASSROOMS: Record<string, {
   id: string; name: string; subject_type: string; type: string
   department: string; year: number; description: string; entry_code: string
-}> = {
-  'y1-1': { id: 'y1-1', name: 'Engineering Mathematics I', subject_type: 'core', type: 'study', department: 'Computer Science', year: 1, description: 'Calculus, matrices, and differential equations foundations.', entry_code: '' },
-  'y1-2': { id: 'y1-2', name: 'Engineering Physics', subject_type: 'core', type: 'study', department: 'Computer Science', year: 1, description: 'Wave optics and quantum mechanics introduction.', entry_code: '' },
-  'y1-3': { id: 'y1-3', name: 'Programming in C', subject_type: 'core', type: 'study', department: 'Computer Science', year: 1, description: 'First principles of programming logic and C syntax.', entry_code: '' },
-  'y1-4': { id: 'y1-4', name: 'Basic Electronics', subject_type: 'elective', type: 'study', department: 'Computer Science', year: 1, description: 'Diodes, transistors, and basic circuit design.', entry_code: '' },
-  'y2-1': { id: 'y2-1', name: 'Data Structures & Algorithms', subject_type: 'core', type: 'study', department: 'Computer Science', year: 2, description: 'Arrays, linked lists, trees, graphs, and sorting algorithms.', entry_code: '' },
-  'y2-2': { id: 'y2-2', name: 'Object-Oriented Programming', subject_type: 'core', type: 'study', department: 'Computer Science', year: 2, description: 'Java classes, inheritance, polymorphism and design patterns.', entry_code: '' },
-  'y2-3': { id: 'y2-3', name: 'Computer Organization', subject_type: 'core', type: 'study', department: 'Computer Science', year: 2, description: 'CPU architecture, memory hierarchy, instruction sets.', entry_code: '' },
-  'y2-4': { id: 'y2-4', name: 'Discrete Mathematics', subject_type: 'core', type: 'study', department: 'Computer Science', year: 2, description: 'Logic, sets, relations, and graph theory.', entry_code: '' },
-  'y3-1': { id: 'y3-1', name: 'Operating Systems', subject_type: 'core', type: 'study', department: 'Computer Science', year: 3, description: 'Process management, memory management, and file systems.', entry_code: '' },
-  'y3-2': { id: 'y3-2', name: 'Database Management Systems', subject_type: 'core', type: 'study', department: 'Computer Science', year: 3, description: 'ER models, SQL, transactions and normalization.', entry_code: '' },
-  'y3-3': { id: 'y3-3', name: 'Computer Networks', subject_type: 'core', type: 'study', department: 'Computer Science', year: 3, description: 'OSI model, TCP/IP, routing algorithms.', entry_code: '' },
-  'y3-4': { id: 'y3-4', name: 'Machine Learning', subject_type: 'elective', type: 'study', department: 'Computer Science', year: 3, description: 'Neural networks and backpropagation deep dive.', entry_code: '' },
-  'y3-5': { id: 'y3-5', name: 'Cloud Computing', subject_type: 'elective', type: 'study', department: 'Computer Science', year: 3, description: 'AWS practicals starting this week.', entry_code: '' },
-  'y4-1': { id: 'y4-1', name: 'Distributed Systems', subject_type: 'core', type: 'study', department: 'Computer Science', year: 4, description: 'CAP theorem, consistency models, microservices.', entry_code: '' },
-  'y4-2': { id: 'y4-2', name: 'Compiler Design', subject_type: 'core', type: 'study', department: 'Computer Science', year: 4, description: 'Lexical analysis, parsing, and code generation.', entry_code: '' },
-  'y4-3': { id: 'y4-3', name: 'Information Security', subject_type: 'elective', type: 'study', department: 'Computer Science', year: 4, description: 'Cryptography, network security, ethical hacking overview.', entry_code: '' },
-  'y4-4': { id: 'y4-4', name: 'Major Project Seminar', subject_type: 'elective', type: 'study', department: 'Computer Science', year: 4, description: 'Final year project discussions and progress reviews.', entry_code: '' },
-}
+}> = {}
+
+// Flatten the nested structure
+Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
+  const deptLabel = DEPT_LABELS[deptCode] ?? deptCode
+  Object.entries(years).forEach(([yearStr, classrooms]) => {
+    const year = parseInt(yearStr, 10)
+    classrooms.forEach(c => {
+      SEED_CLASSROOMS[c.id] = {
+        id: c.id,
+        name: c.name,
+        subject_type: c.subject_type,
+        type: 'study',
+        department: deptLabel,
+        year: year,
+        description: c.description,
+        entry_code: '',
+      }
+    })
+  })
+})
 
 export default async function ClassroomDetailPage({ params }: Props) {
   const { id } = await params

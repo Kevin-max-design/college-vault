@@ -439,7 +439,27 @@ INSERT INTO classrooms (name, type, subject_type, department, year, description,
   ('Machine Learning',             'study',   'elective', 'CSE', 3, 'Neural networks and backpropagation deep dive this sprint.',                                'mlcse3'),
   ('Database Management Systems',  'study',   'core',     'CSE', 2, 'SQL joins and normalization week.',                                                         'dbms02'),
   ('Web-based DBMS',               'project', 'core',     'CSE', 3, 'Team Alpha — Sprint 2 active.',                                                             'wdbms3'),
-  ('Linux Kernel Module',          'project', 'core',     'CSE', 3, 'Reviewing patch submission guidelines.',                                                     'lkmod3')
+  ('Linux Kernel Module',          'project', 'core',     'CSE', 3, 'Reviewing patch submission guidelines.',                                                     'lkmod3'),
+  -- ECE
+  ('Electronic Devices and Circuits', 'study', 'core', 'ECE', 2, 'Diodes, BJTs, MOSFETs and amplifier topologies.', 'ece201'),
+  ('Switching Theory & Logic Design', 'study', 'core', 'ECE', 2, 'K-maps, logic families, combinational and sequential circuit design.', 'ece202'),
+  ('Signals and Systems', 'study', 'core', 'ECE', 2, 'Fourier, Laplace, and Z-transforms; LTI systems analysis.', 'ece203'),
+  ('VLSI Design', 'study', 'core', 'ECE', 4, 'CMOS fabrication, inverter delay, stick diagrams, and layout.', 'ece401'),
+  -- EEE
+  ('DC Machines and Transformers', 'study', 'core', 'EEE', 2, 'DC generator, motor characteristics, and single-phase transformers.', 'eee201'),
+  ('Control Systems', 'study', 'core', 'EEE', 3, 'Block diagrams, transfer functions, and root-locus/bode plots.', 'eee301'),
+  -- ME
+  ('Thermodynamics', 'study', 'core', 'ME', 2, 'First and second laws, properties of pure substances, gas cycles.', 'me201'),
+  ('CAD/CAM', 'study', 'core', 'ME', 4, 'Geometric modeling, NC programming, and computer networks.', 'me401'),
+  -- CE
+  ('Strength of Materials', 'study', 'core', 'CE', 2, 'Shear and bending stresses, deflection in beams, columns.', 'ce201'),
+  ('Design of Steel Structures', 'study', 'core', 'CE', 4, 'Tension, compression members, bolted and welded joints.', 'ce401'),
+  -- MCA
+  ('Data Structures using C++', 'study', 'core', 'MCA', 1, 'Memory structures, complexity algorithms, tree models.', 'mca101'),
+  ('Java Programming', 'study', 'core', 'MCA', 2, 'Inheritance, exception rules, database interfaces via JDBC.', 'mca201'),
+  -- MBA
+  ('Management & Org Behavior', 'study', 'core', 'MBA', 1, 'Leadership principles, motivation models, and team dynamics.', 'mba101'),
+  ('Strategic Management', 'study', 'core', 'MBA', 2, 'SWOT analyses, BCG matrices, corporate growth strategies.', 'mba201')
 ON CONFLICT (entry_code) DO NOTHING;
 
 -- ── Games (no author needed — created_by is nullable) ────────────
