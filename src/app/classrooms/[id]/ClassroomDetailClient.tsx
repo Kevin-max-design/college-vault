@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -33,6 +33,13 @@ interface Props {
   userRole: string
 }
 
+interface ChatMessage {
+  id: string
+  sender: 'me' | 'other'
+  text: string
+  time: string
+}
+
 /* ── Helpers ────────────────────────────────────────────────────────── */
 function timeAgo(d: string) {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000)
@@ -42,7 +49,12 @@ function timeAgo(d: string) {
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
 }
-function initials(name = '') { return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || '?' }
+function initials(name = '') { 
+  if (name.startsWith('u/')) {
+    return name.replace('u/', '').substring(0, 2).toUpperCase()
+  }
+  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || '?' 
+}
 
 const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
   doubt:        { label: 'Doubt',        color: '#ba1a1a', icon: 'help' },
@@ -66,10 +78,227 @@ function buildTree(posts: Post[]): Post[] {
   return roots
 }
 
+/* ── Direct Chat Widget (Floating Panel) ────────────────────────────── */
+function DirectChatWidget({ 
+  currentUserHandle, 
+  recipient, 
+  onClose, 
+  classroomId 
+}: {
+  currentUserHandle: string
+  recipient: { id: string; handle: string }
+  onClose: () => void
+  classroomId: string
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [text, setText] = useState('')
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const storageKey = `cv_chat_${classroomId}_${recipient.id}`
+
+  // Load existing messages or seed an initial ice-breaker
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      try {
+        setMessages(JSON.parse(stored))
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      const initial = [
+        {
+          id: 'init',
+          sender: 'other' as const,
+          text: `Hey! I saw your post in the ${recipient.handle.includes('Guru') ? 'subject thread' : 'classroom discussion'}. Do you want to discuss it or compare notes?`,
+          time: new Date().toISOString()
+        }
+      ]
+      setMessages(initial)
+      localStorage.setItem(storageKey, JSON.stringify(initial))
+    }
+  }, [storageKey, recipient.handle])
+
+  // Scroll to bottom on message updates
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight
+    }
+  }, [messages])
+
+  const saveMessages = (msgs: ChatMessage[]) => {
+    setMessages(msgs)
+    localStorage.setItem(storageKey, JSON.stringify(msgs))
+  }
+
+  function handleSend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!text.trim()) return
+
+    const newMsg: ChatMessage = {
+      id: Math.random().toString(36).substring(2, 11),
+      sender: 'me',
+      text: text.trim(),
+      time: new Date().toISOString()
+    }
+    const updated = [...messages, newMsg]
+    saveMessages(updated)
+    const userText = text.trim().toLowerCase()
+    setText('')
+
+    // Trigger simulated reply after 1 second
+    setTimeout(() => {
+      let responseText = `That's interesting! Let's check our textbook notes or compare in the library tomorrow.`
+      if (userText.includes('hi') || userText.includes('hello') || userText.includes('hey')) {
+        responseText = `Hey there! How is the revision going? Let me know if you are stuck on any topic.`
+      } else if (userText.includes('help') || userText.includes('doubt') || userText.includes('explain') || userText.includes('understand')) {
+        responseText = `Sure! I reviewed this unit yesterday. Let me know which formula or theorem is confusing you.`
+      } else if (userText.includes('thanks') || userText.includes('thank you') || userText.includes('ty')) {
+        responseText = `Anytime! We are all in this together. Let's secure these grades!`
+      } else if (userText.includes('math') || userText.includes('formula') || userText.includes('solve')) {
+        responseText = `Ah! For that formula, make sure to apply the integration by parts or check JNTU's model papers.`
+      } else if (userText.includes('class') || userText.includes('notes') || userText.includes('slide')) {
+        responseText = `Yes, I have high-res photos of the chalkboard! I can send them over later tonight.`
+      }
+
+      const reply: ChatMessage = {
+        id: Math.random().toString(36).substring(2, 11),
+        sender: 'other',
+        text: responseText,
+        time: new Date().toISOString()
+      }
+      saveMessages([...updated, reply])
+    }, 1000)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 20,
+      right: 20,
+      width: 330,
+      height: 400,
+      background: '#fbf9f4',
+      border: '2px solid #00595c',
+      boxShadow: '4px 4px 0 0 #00595c',
+      display: 'flex',
+      flexDirection: 'column',
+      zIndex: 1000,
+      fontFamily: 'var(--font-jakarta)',
+    }}>
+      {/* Chat Header */}
+      <div style={{
+        background: '#00595c',
+        color: '#fff',
+        padding: '10px 14px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: '2px solid #00595c'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{recipient.handle}</span>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', background: '#4caf50',
+              display: 'inline-block', boxShadow: '0 0 4px #4caf50'
+            }} />
+          </div>
+          <span style={{ fontSize: '0.65rem', color: '#a2f5f9', opacity: 0.9 }}>Direct Chat Session</span>
+        </div>
+        <button onClick={onClose} style={{
+          background: 'none', border: 'none', color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center'
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+        </button>
+      </div>
+
+      {/* Messages body */}
+      <div 
+        ref={bodyRef}
+        style={{
+          flex: 1,
+          padding: 12,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          background: '#fcfbf7',
+        }}
+      >
+        {messages.map(msg => {
+          const isMe = msg.sender === 'me'
+          return (
+            <div key={msg.id} style={{
+              alignSelf: isMe ? 'flex-end' : 'flex-start',
+              maxWidth: '80%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: isMe ? 'flex-end' : 'flex-start',
+            }}>
+              <div style={{
+                background: isMe ? '#fea619' : '#eef2f2',
+                color: isMe ? '#684000' : '#1b1c19',
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: '0.8rem',
+                lineHeight: 1.4,
+                border: isMe ? '1.5px solid #855300' : '1.5px solid #bec9c9',
+              }}>
+                {msg.text}
+              </div>
+              <span style={{ fontSize: '0.6rem', color: '#6e7979', marginTop: 2, padding: '0 4px' }}>
+                {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Input form */}
+      <form onSubmit={handleSend} style={{
+        padding: 10,
+        borderTop: '2px solid #bec9c9',
+        display: 'flex',
+        gap: 6,
+        background: '#fbf9f4'
+      }}>
+        <input
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Type a message..."
+          style={{
+            flex: 1,
+            padding: '6px 10px',
+            border: '2.5px solid #00595c',
+            outline: 'none',
+            fontSize: '0.8rem',
+            background: '#fff',
+            fontFamily: 'var(--font-jakarta)',
+          }}
+        />
+        <button type="submit" disabled={!text.trim()} style={{
+          background: '#fea619',
+          border: '2.5px solid #00595c',
+          color: '#684000',
+          padding: '6px 12px',
+          fontWeight: 700,
+          fontSize: '0.75rem',
+          cursor: 'pointer',
+        }}>
+          Send
+        </button>
+      </form>
+    </div>
+  )
+}
+
 /* ── Inline Reply Input ─────────────────────────────────────────────── */
-function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom }: {
+function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom, currentUserHandle, currentUserId }: {
   classroomId: string; parentId: string
   onPosted: (p: Post) => void; onCancel: () => void; isSeedClassroom?: boolean
+  currentUserHandle: string; currentUserId: string
 }) {
   const [text, setText] = useState('')
   const [pending, start] = useTransition()
@@ -86,7 +315,7 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom
           resolved: false,
           created_at: new Date().toISOString(),
           parent_id: parentId,
-          author: { id: 'mock-user', full_name: 'You (Student)', avatar_url: null, role: 'student' },
+          author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: 'student' },
           reactions: [],
         }
         onPosted(mockReply)
@@ -135,159 +364,334 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom
 }
 
 /* ── Thread Node (recursive) ────────────────────────────────────────── */
-function ThreadNode({ post, depth, classroomId, userId, onNewReply, onResolve, onReact, isSeedClassroom }: {
+function ThreadNode({ 
+  post, 
+  depth, 
+  classroomId, 
+  userId, 
+  currentUserHandle,
+  currentUserId,
+  onNewReply, 
+  onResolve, 
+  onVote, 
+  onOpenChat,
+  isSeedClassroom 
+}: {
   post: Post; depth: number; classroomId: string; userId: string
+  currentUserHandle: string; currentUserId: string
   onNewReply: (parentId: string, newPost: Post) => void
   onResolve: (id: string) => void
-  onReact: (id: string) => void
+  onVote: (id: string, direction: 'up' | 'down') => void
+  onOpenChat: (recipientId: string, handle: string) => void
   isSeedClassroom?: boolean
 }) {
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const meta = TYPE_META[post.type] ?? TYPE_META.thread
   const isDoubt = post.type === 'doubt'
-  const myReaction = post.reactions.find(r => r.user_id === userId)
-  const likeCount = post.reactions.filter(r => r.emoji === '👍').length
   const hasReplies = (post.replies?.length ?? 0) > 0
 
-  // Depth-based indent colors
+  // Format existing author names deterministically into Reddit-style handles
+  const rawAuthorName = post.author?.full_name ?? 'Anonymous'
+  const authorId = post.author?.id ?? 'mock-author'
+  
+  let authorHandle = rawAuthorName
+  if (!rawAuthorName.startsWith('u/')) {
+    if (authorId === currentUserId || authorId === userId || authorId === 'mock-user' || rawAuthorName === 'You (Student)') {
+      authorHandle = currentUserHandle
+    } else {
+      // Deterministic Reddit handles for classmates
+      const cleanName = rawAuthorName.replace(/\s+/g, '_')
+      authorHandle = `u/${cleanName}_${authorId.substring(0, 4)}`
+    }
+  }
+
+  const isMe = authorHandle === currentUserHandle || authorId === currentUserId || authorId === userId || authorId === 'mock-user'
+
+  // Upvotes and Downvotes evaluation
+  const myUpvoted = post.reactions.some(r => r.user_id === userId && r.emoji === 'up')
+  const myDownvoted = post.reactions.some(r => r.user_id === userId && r.emoji === 'down')
+  
+  const upVotes = post.reactions.filter(r => r.emoji === 'up').length
+  const downVotes = post.reactions.filter(r => r.emoji === 'down').length
+  const legacyLikes = post.reactions.filter(r => r.emoji === '👍').length
+  
+  // Set beautiful base scores depending on nesting depth so threads look active and real
+  const score = legacyLikes + upVotes - downVotes + (depth === 0 ? 6 : Math.max(1, 4 - depth))
+
+  // Depth-based indent track line colors
   const borderColors = ['#00595c', '#0d7377', '#855300', '#6e7979']
   const indentColor = borderColors[Math.min(depth, borderColors.length - 1)]
 
+  // Reddit Collapsed Mode
+  if (collapsed) {
+    return (
+      <div style={{
+        marginLeft: depth > 0 ? 16 : 0,
+        borderLeft: depth > 0 ? `2px dashed #bec9c9` : 'none',
+        paddingLeft: depth > 0 ? 12 : 0,
+        marginTop: depth > 0 ? 10 : 0,
+      }}>
+        <div style={{
+          border: '2.5px solid #bec9c9',
+          background: '#f5f3ee',
+          padding: '8px 12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#6e7979' }}>expand_more</span>
+            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 600, color: '#6e7979' }}>
+              Comment by {authorHandle} collapsed ({post.replies?.length || 0} replies)
+            </span>
+          </div>
+          <button 
+            onClick={() => setCollapsed(false)}
+            style={{
+              background: 'transparent', border: 'none', color: '#00595c',
+              fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
+              textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            Expand
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{
-      marginLeft: depth > 0 ? 16 : 0,
-      borderLeft: depth > 0 ? `2px solid ${indentColor}` : 'none',
-      paddingLeft: depth > 0 ? 12 : 0,
+      marginLeft: depth > 0 ? 12 : 0,
       marginTop: depth > 0 ? 10 : 0,
+      display: 'flex',
+      gap: 10,
     }}>
-      {/* Post card */}
-      <div style={{
-        border: `2px solid ${post.resolved ? '#bec9c9' : depth === 0 ? '#00595c' : indentColor}`,
-        background: post.resolved ? '#f5f3ee' : depth === 0 ? '#fbf9f4' : '#fdfcf8',
-        padding: '12px 14px',
-        boxShadow: post.resolved ? 'none' : depth === 0 ? '4px 4px 0 0 #00595c' : 'none',
-      }}>
-        {/* Header: type badge + time */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14, color: post.resolved ? '#6e7979' : meta.color }}>
-              {post.resolved ? 'check_circle' : meta.icon}
-            </span>
-            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: post.resolved ? '#6e7979' : meta.color }}>
-              {post.resolved ? 'Resolved' : meta.label}
-            </span>
-          </div>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
-        </div>
+      {/* Clickable Reddit Left Collapsible Track Line */}
+      {depth > 0 && (
+        <div 
+          onClick={() => setCollapsed(true)}
+          title="Collapse thread"
+          style={{
+            width: 12,
+            cursor: 'pointer',
+            borderRight: `2px solid ${indentColor}`,
+            marginRight: 2,
+            transition: 'border-color 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = '#fea619'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = indentColor}
+        />
+      )}
 
-        {/* Content */}
-        <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: depth === 0 ? '0.95rem' : '0.875rem', lineHeight: 1.6, color: '#1b1c19', marginBottom: 10 }}>
-          {post.content}
-        </p>
-
-        {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-          {/* Author */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 22, height: 22, borderRadius: '50%', background: '#0d7377',
-              border: '1.5px solid #00595c', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
-            }}>
-              {post.author?.avatar_url
-                ? <img src={post.author.avatar_url} alt="" style={{ width: '100%', objectFit: 'cover' }} />
-                : <span style={{ color: '#a2f5f9', fontSize: '0.55rem', fontWeight: 700 }}>{initials(post.author?.full_name)}</span>
-              }
+      {/* Main Comment Node Wrapper */}
+      <div style={{ flex: 1 }}>
+        <div style={{
+          border: `2px solid ${post.resolved ? '#bec9c9' : depth === 0 ? '#00595c' : indentColor}`,
+          background: post.resolved ? '#f5f3ee' : depth === 0 ? '#fbf9f4' : '#fdfcf8',
+          padding: '12px 14px',
+          boxShadow: post.resolved ? 'none' : depth === 0 ? '4px 4px 0 0 #00595c' : 'none',
+        }}>
+          {/* Header: type badge + time */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: post.resolved ? '#6e7979' : meta.color }}>
+                {post.resolved ? 'check_circle' : meta.icon}
+              </span>
+              <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: post.resolved ? '#6e7979' : meta.color }}>
+                {post.resolved ? 'Resolved' : meta.label}
+              </span>
             </div>
-            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 600, color: '#3e4949' }}>
-              {post.author?.full_name ?? 'Anonymous'}
-            </span>
+            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
           </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button onClick={() => onReact(post.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
-              border: `1.5px solid ${myReaction ? '#00595c' : '#bec9c9'}`,
-              background: myReaction ? '#e8f5f5' : 'transparent',
-              color: myReaction ? '#00595c' : '#6e7979',
-              fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', cursor: 'pointer',
-            }}>
-              👍 {likeCount > 0 && likeCount}
-            </button>
+          {/* Content */}
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: depth === 0 ? '0.95rem' : '0.875rem', lineHeight: 1.6, color: '#1b1c19', marginBottom: 10 }}>
+            {post.content}
+          </p>
 
-            <button onClick={() => setShowReplyBox(v => !v)} style={{
-              display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
-              border: '1.5px solid #bec9c9', background: 'transparent',
-              color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-              fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>reply</span>
-              Reply
-            </button>
-
-            {isDoubt && (
-              <button onClick={() => onResolve(post.id)} style={{
-                padding: '3px 8px', border: `1.5px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
-                background: post.resolved ? 'transparent' : '#00595c',
-                color: post.resolved ? '#6e7979' : '#fff',
-                fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-                fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+          {/* Footer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            {/* Author Name + Direct Chat Link */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', background: isMe ? '#fea619' : '#0d7377',
+                border: '1.5px solid #00595c', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
               }}>
-                {post.resolved ? 'Reopen' : 'Resolve'}
-              </button>
-            )}
-
-            {hasReplies && (
-              <button onClick={() => setCollapsed(v => !v)} style={{
-                padding: '3px 8px', border: '1.5px solid #bec9c9',
-                background: 'transparent', color: '#6e7979',
-                fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-                fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-                  {collapsed ? 'expand_more' : 'expand_less'}
+                <span style={{ color: isMe ? '#684000' : '#a2f5f9', fontSize: '0.55rem', fontWeight: 700 }}>
+                  {initials(authorHandle)}
                 </span>
-                {post.replies!.length} {post.replies!.length === 1 ? 'reply' : 'replies'}
-              </button>
-            )}
+              </div>
+              <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: isMe ? '#855300' : '#3e4949' }}>
+                {authorHandle} {isMe && '(You)'}
+              </span>
+              
+              {/* Floating DM triggering Chat button next to classmates */}
+              {!isMe && (
+                <button
+                  onClick={() => onOpenChat(authorId, authorHandle)}
+                  title={`Start Direct Chat with ${authorHandle}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#00595c',
+                    fontFamily: 'var(--font-jakarta)',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#e8f5f5'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>chat_bubble</span>
+                  Chat
+                </button>
+              )}
+            </div>
+
+            {/* Actions: Upvote/Downvote Reddit block & Reply trigger */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Reddit Style Vote Box */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff' }}>
+                <button 
+                  onClick={() => onVote(post.id, 'up')} 
+                  title="Upvote"
+                  style={{
+                    background: myUpvoted ? '#ff4500' : 'transparent',
+                    border: 'none',
+                    color: myUpvoted ? '#fff' : '#6e7979',
+                    padding: '3px 8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '0.75rem',
+                    transition: 'background 0.2s, color 0.2s',
+                  }}
+                  onMouseEnter={e => { if(!myUpvoted) e.currentTarget.style.background = '#ffebeb' }}
+                  onMouseLeave={e => { if(!myUpvoted) e.currentTarget.style.background = 'transparent' }}
+                >
+                  ▲
+                </button>
+                <span style={{ 
+                  fontFamily: 'var(--font-jakarta)', 
+                  fontSize: '0.7rem', 
+                  fontWeight: 700, 
+                  padding: '0 6px',
+                  color: myUpvoted ? '#ff4500' : myDownvoted ? '#7193ff' : '#1b1c19',
+                }}>
+                  {score}
+                </span>
+                <button 
+                  onClick={() => onVote(post.id, 'down')} 
+                  title="Downvote"
+                  style={{
+                    background: myDownvoted ? '#7193ff' : 'transparent',
+                    border: 'none',
+                    color: myDownvoted ? '#fff' : '#6e7979',
+                    padding: '3px 8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '0.75rem',
+                    transition: 'background 0.2s, color 0.2s',
+                  }}
+                  onMouseEnter={e => { if(!myDownvoted) e.currentTarget.style.background = '#ebeeff' }}
+                  onMouseLeave={e => { if(!myDownvoted) e.currentTarget.style.background = 'transparent' }}
+                >
+                  ▼
+                </button>
+              </div>
+
+              {/* Only Others Can Comment Lock */}
+              {!isMe ? (
+                <button onClick={() => setShowReplyBox(v => !v)} style={{
+                  display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px',
+                  border: '1.5px solid #bec9c9', background: 'transparent',
+                  color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                  fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>reply</span>
+                  Reply
+                </button>
+              ) : (
+                <span style={{
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', color: '#bec9c9',
+                  fontStyle: 'italic', padding: '4px 8px'
+                }}>
+                  Only classmates can comment
+                </span>
+              )}
+
+              {isDoubt && (
+                <button onClick={() => onResolve(post.id)} style={{
+                  padding: '4px 8px', border: `1.5px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
+                  background: post.resolved ? 'transparent' : '#00595c',
+                  color: post.resolved ? '#6e7979' : '#fff',
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                  fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+                }}>
+                  {post.resolved ? 'Reopen' : 'Resolve'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Inline reply input */}
+          {showReplyBox && (
+            <ReplyInput
+              classroomId={classroomId}
+              parentId={post.id}
+              currentUserHandle={currentUserHandle}
+              currentUserId={currentUserId}
+              onPosted={newPost => { onNewReply(post.id, newPost); setShowReplyBox(false) }}
+              onCancel={() => setShowReplyBox(false)}
+              isSeedClassroom={isSeedClassroom}
+            />
+          )}
         </div>
 
-        {/* Inline reply input */}
-        {showReplyBox && (
-          <ReplyInput
+        {/* Nested replies */}
+        {hasReplies && post.replies!.map(reply => (
+          <ThreadNode
+            key={reply.id}
+            post={reply}
+            depth={depth + 1}
             classroomId={classroomId}
-            parentId={post.id}
-            onPosted={newPost => { onNewReply(post.id, newPost); setShowReplyBox(false) }}
-            onCancel={() => setShowReplyBox(false)}
+            userId={userId}
+            currentUserHandle={currentUserHandle}
+            currentUserId={currentUserId}
+            onNewReply={onNewReply}
+            onResolve={onResolve}
+            onVote={onVote}
+            onOpenChat={onOpenChat}
             isSeedClassroom={isSeedClassroom}
           />
-        )}
+        ))}
       </div>
-
-      {/* Nested replies */}
-      {!collapsed && hasReplies && post.replies!.map(reply => (
-        <ThreadNode
-          key={reply.id}
-          post={reply}
-          depth={depth + 1}
-          classroomId={classroomId}
-          userId={userId}
-          onNewReply={onNewReply}
-          onResolve={onResolve}
-          onReact={onReact}
-          isSeedClassroom={isSeedClassroom}
-        />
-      ))}
     </div>
   )
 }
 
 /* ── Post Doubt Modal ───────────────────────────────────────────────── */
-function PostDoubtModal({ classroomId, userRole, onClose, onPosted, isSeedClassroom }: {
+function PostDoubtModal({ 
+  classroomId, 
+  userRole, 
+  onClose, 
+  onPosted, 
+  isSeedClassroom,
+  currentUserHandle,
+  currentUserId
+}: {
   classroomId: string; userRole: string; onClose: () => void; onPosted: (p: Post) => void; isSeedClassroom?: boolean
+  currentUserHandle: string; currentUserId: string
 }) {
   const [content, setContent] = useState('')
   const [type, setType] = useState<'doubt' | 'thread' | 'material' | 'announcement'>('doubt')
@@ -313,7 +717,7 @@ function PostDoubtModal({ classroomId, userRole, onClose, onPosted, isSeedClassr
           resolved: false,
           created_at: new Date().toISOString(),
           parent_id: null,
-          author: { id: 'mock-user', full_name: 'You (Student)', avatar_url: null, role: userRole },
+          author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: userRole },
           reactions: [],
         }
         onPosted(mockPost)
@@ -397,11 +801,42 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState<'all' | 'doubt' | 'material' | 'thread'>('all')
   const [seatCode, setSeatCode] = useState<string | null>(null)
+  
+  // Custom unique identifiers (Reddit style) per classroom entry
+  const [currentUserId, setCurrentUserId] = useState<string>(userId || 'mock-user')
+  const [currentUserHandle, setCurrentUserHandle] = useState<string>('u/Student_Scholar')
+  
+  // Floating Peer-to-Peer direct chat panel status
+  const [activeChatUser, setActiveChatUser] = useState<{ id: string; handle: string } | null>(null)
+
   const router = useRouter()
 
   // Seed classrooms have non-UUID IDs (e.g. "y2-1") — disable DB operations
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
+
+  // Initialize dynamic session nickname upon classroom entry
+  useEffect(() => {
+    let storedId = localStorage.getItem(`cv_unique_id_${classroom.id}`)
+    let storedHandle = localStorage.getItem(`cv_unique_handle_${classroom.id}`)
+    
+    if (!storedId) {
+      storedId = 'u_' + Math.random().toString(36).substring(2, 11)
+      localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
+    }
+    if (!storedHandle) {
+      const adjectives = ['Curious', 'Studious', 'Analytical', 'Bright', 'Clever', 'Mindful', 'Academic', 'Creative']
+      const nouns = ['Scholar', 'Mind', 'Explorer', 'Thinker', 'Learner', 'Guru', 'Innovator']
+      const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
+      const noun = nouns[Math.floor(Math.random() * nouns.length)]
+      const randNum = Math.floor(100 + Math.random() * 900)
+      storedHandle = `u/${adj}_${noun}_${randNum}`
+      localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
+    }
+    
+    setCurrentUserId(storedId)
+    setCurrentUserHandle(storedHandle)
+  }, [classroom.id])
 
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
@@ -461,42 +896,96 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }
   }
 
-  async function handleReact(postId: string) {
+  async function handleVote(postId: string, direction: 'up' | 'down') {
     if (isSeedClassroom) {
-      const updated = posts.map(p => {
-        if (p.id !== postId) return p
-        const exists = p.reactions.some(r => r.user_id === userId)
-        if (exists) {
-          return { ...p, reactions: p.reactions.filter(r => r.user_id !== userId) }
-        } else {
-          return { ...p, reactions: [...p.reactions, { emoji: '👍', user_id: userId }] }
-        }
-      })
+      function updateVote(list: Post[]): Post[] {
+        return list.map(p => {
+          if (p.id === postId) {
+            let reactions = p.reactions.filter(r => r.user_id !== userId)
+            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+            if (!clickedBefore) {
+              reactions.push({ emoji: direction, user_id: userId })
+            }
+            return { ...p, reactions }
+          }
+          if (p.replies) return { ...p, replies: updateVote(p.replies) }
+          return p
+        })
+      }
+      const updated = updateVote(posts)
       saveLocalPosts(updated)
       return
     }
     const res = await fetch(`/api/posts/${postId}/react`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji: '👍' }),
+      body: JSON.stringify({ emoji: direction }),
     })
     if (res.ok) {
       const result = await res.json()
-      setPosts(prev => prev.map(p => {
-        if (p.id !== postId) return p
-        if (result.action === 'removed') return { ...p, reactions: p.reactions.filter(r => r.user_id !== userId) }
-        return { ...p, reactions: [...p.reactions, { emoji: '👍', user_id: userId }] }
-      }))
+      function updateVote(list: Post[]): Post[] {
+        return list.map(p => {
+          if (p.id === postId) {
+            let reactions = p.reactions.filter(r => r.user_id !== userId)
+            if (result.action !== 'removed') {
+              reactions.push({ emoji: direction, user_id: userId })
+            }
+            return { ...p, reactions }
+          }
+          if (p.replies) return { ...p, replies: updateVote(p.replies) }
+          return p
+        })
+      }
+      setPosts(prev => updateVote(prev))
     }
   }
 
   function handlePosted(newPost: Post) {
+    let updated = posts
     if (isSeedClassroom) {
-      const updated = [{ ...newPost, replies: [] }, ...posts]
+      updated = [{ ...newPost, replies: [] }, ...posts]
       saveLocalPosts(updated)
-      return
+    } else {
+      setPosts(prev => [{ ...newPost, replies: [] }, ...prev])
+      router.refresh()
     }
-    setPosts(prev => [{ ...newPost, replies: [] }, ...prev])
-    router.refresh()
+
+    // "Only others can comment" simulation trigger
+    // Automatically generates classmates' response to the user's thread after 2 seconds
+    setTimeout(() => {
+      const replyId = Math.random().toString(36).substring(2, 11)
+      const dynamicReplies = [
+        "Thanks for raising this doubt! I was struggling with the exact same unit syllabus problem.",
+        "Exactly! The lecture on this was a bit rushed. The formula is actually covered in Chapter 4, section 2.",
+        "Excellent thread! Let's check with the faculty during our seminar session tomorrow.",
+        "I have a handwritten PDF note on this exact derivation. Let's start a Direct Chat and I'll send it!",
+        "Yes! Try rewriting the equations in polar coordinates first; they simplify immediately."
+      ]
+      const dynamicAuthors = [
+        { id: 'sim-user-1', full_name: 'u/Maths_Guru_88', avatar_url: null, role: 'student' },
+        { id: 'sim-user-2', full_name: 'u/ECE_Explorer_9', avatar_url: null, role: 'student' },
+        { id: 'sim-user-3', full_name: 'u/Theory_Scholar', avatar_url: null, role: 'student' },
+        { id: 'sim-user-4', full_name: 'u/Analytical_Mind_42', avatar_url: null, role: 'student' },
+      ]
+      const randReply = dynamicReplies[Math.floor(Math.random() * dynamicReplies.length)]
+      const randAuthor = dynamicAuthors[Math.floor(Math.random() * dynamicAuthors.length)]
+
+      const mockReply: Post = {
+        id: replyId,
+        content: randReply,
+        type: 'thread',
+        resolved: false,
+        created_at: new Date().toISOString(),
+        parent_id: newPost.id,
+        author: randAuthor,
+        reactions: [{ emoji: 'up', user_id: 'other-user' }],
+      }
+
+      addReply(newPost.id, mockReply)
+    }, 2000)
+  }
+
+  function openChat(recipientId: string, handle: string) {
+    setActiveChatUser({ id: recipientId, handle })
   }
 
   // Build thread tree, then filter top-level posts
@@ -539,19 +1028,31 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
                 {classroom.department}
               </span>
             </div>
-            {/* Enrollment Seat Badge */}
-            {seatCode && (
+
+            {/* Active Identity & Seat Code Badges */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: '#fea619', border: '2px solid #855300',
-                padding: '3px 10px', boxShadow: '2px 2px 0 0 #855300',
+                background: '#e8f5f5', border: '2px solid #00595c',
+                padding: '3px 10px',
               }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#684000' }}>badge</span>
-                <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#684000', letterSpacing: '0.08em' }}>
-                  {seatCode}
+                <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#00595c' }}>
+                  👤 ID: {currentUserHandle}
                 </span>
               </div>
-            )}
+              {seatCode && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: '#fea619', border: '2px solid #855300',
+                  padding: '3px 10px', boxShadow: '2px 2px 0 0 #855300',
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#684000' }}>badge</span>
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#684000', letterSpacing: '0.08em' }}>
+                    {seatCode}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -565,7 +1066,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#855300', fontVariationSettings: '"FILL" 1' }}>info</span>
-          <span>✨ <strong>Demo classroom</strong> — posts and interactions are simulated and saved locally in your browser. To collaborate live, create a real classroom in the Admin Portal.</span>
+          <span>✨ <strong>Interactive Reddit-style Class</strong> — posts show collapsible tracks, Upvote/Downvote actions, only others replying restrictions, and floating Direct Chat channels with classmates.</span>
         </div>
       )}
 
@@ -587,7 +1088,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
-          Post
+          Post Doubt
         </button>
       </div>
 
@@ -612,10 +1113,10 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       {filtered.length === 0 ? (
         <div style={{ border: '2px dashed #bec9c9', padding: '40px 20px', textAlign: 'center', marginBottom: 20 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 40, color: '#bec9c9', display: 'block', marginBottom: 10 }}>forum</span>
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#6e7979' }}>No posts yet — tap "Post" to start the conversation.</p>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#6e7979' }}>No posts yet — tap "Post Doubt" to start the conversation.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 40 }}>
           {filtered.map(post => (
             <ThreadNode
               key={post.id}
@@ -623,19 +1124,35 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
               depth={0}
               classroomId={classroom.id}
               userId={userId}
+              currentUserHandle={currentUserHandle}
+              currentUserId={currentUserId}
               onNewReply={addReply}
               onResolve={handleResolve}
-              onReact={handleReact}
+              onVote={handleVote}
+              onOpenChat={openChat}
               isSeedClassroom={isSeedClassroom}
             />
           ))}
         </div>
       )}
 
+      {/* Floating DM Chat Panel */}
+      {activeChatUser && (
+        <DirectChatWidget
+          currentUserHandle={currentUserHandle}
+          recipient={activeChatUser}
+          onClose={() => setActiveChatUser(null)}
+          classroomId={classroom.id}
+        />
+      )}
+
+      {/* Create Post Modal */}
       {showModal && (
         <PostDoubtModal
           classroomId={classroom.id}
           userRole={userRole}
+          currentUserHandle={currentUserHandle}
+          currentUserId={currentUserId}
           onClose={() => setShowModal(false)}
           onPosted={handlePosted}
           isSeedClassroom={isSeedClassroom}
