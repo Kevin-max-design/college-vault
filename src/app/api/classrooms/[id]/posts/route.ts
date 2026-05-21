@@ -5,6 +5,9 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isSeedId(id: string) { return !UUID_RE.test(id); }
+
 /**
  * GET /api/classrooms/[id]/posts?type=doubt&parent_id=&page=1
  * Returns posts with author profile, reactions, and reply count.
@@ -14,6 +17,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
   if (result.error) return result.error;
 
   const { id } = await ctx.params;
+  if (isSeedId(id)) return NextResponse.json({ posts: [], page: 1, limit: 20 });
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const parentId = searchParams.get("parent_id");
@@ -74,6 +78,13 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   if (result.error) return result.error;
 
   const { id } = await ctx.params;
+  if (isSeedId(id)) {
+    return NextResponse.json(
+      { error: "This is a demo classroom. Log in and create a real classroom to post." },
+      { status: 400 }
+    );
+  }
+
   const body = await req.json();
   const { content, type, attachments, parent_id } = body;
 

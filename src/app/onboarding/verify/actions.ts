@@ -128,3 +128,25 @@ export async function sendOtpAction(
 
   return { success: true }
 }
+
+/**
+ * Sign in with email and password (for admins). Returns { success } or { error }.
+ */
+export async function signInWithPasswordAction(
+  email: string,
+  password: string
+): Promise<{ success?: boolean; error?: string }> {
+  const cookieStore = await cookies()
+  const supabase = makeSupabase(cookieStore)
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { success: true }
+}

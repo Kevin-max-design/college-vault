@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { verifyOtpAction, sendOtpAction } from './actions'
-
+import { verifyOtpAction, sendOtpAction, signInWithPasswordAction } from './actions'
 
 /* ─────────────────────────────────────────────────────────────── */
 /*  Decorative SVGs                                                */
@@ -31,7 +30,7 @@ function DoodleCurve() {
 }
 
 /* ─────────────────────────────────────────────────────────────── */
-/*  Email Step                                                     */
+/*  Student Email Step                                             */
 /* ─────────────────────────────────────────────────────────────── */
 function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
   const [email, setEmail] = useState('')
@@ -43,7 +42,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
     setError('')
 
     if (!email.toLowerCase().endsWith('.edu')) {
-      setError('Only .edu email addresses are allowed.')
+      setError('Only .edu email addresses are allowed for students.')
       return
     }
 
@@ -75,9 +74,9 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
         />
 
         <div className="flex items-start gap-2 mt-1 px-1">
-          <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: '#fea619', fontSize: 18 }}>info</span>
+          <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: '#fea619', fontSize: 18, fontVariationSettings: '"FILL" 1' }}>info</span>
           <p className="text-sm leading-snug" style={{ color: '#3e4949', fontFamily: 'var(--font-jakarta)' }}>
-            Access is strictly limited to verified{' '}
+            Student access is strictly limited to verified{' '}
             <strong style={{ color: '#00595c', fontWeight: 700 }}>.edu</strong> email addresses.
           </p>
         </div>
@@ -100,7 +99,7 @@ function EmailStep({ onOtpSent }: { onOtpSent: (email: string) => void }) {
 }
 
 /* ─────────────────────────────────────────────────────────────── */
-/*  OTP Step                                                       */
+/*  Student OTP Step                                               */
 /* ─────────────────────────────────────────────────────────────── */
 function OtpStep({ email, onBack }: { email: string; onBack: () => void }) {
   const [otp, setOtp] = useState('')
@@ -120,7 +119,6 @@ function OtpStep({ email, onBack }: { email: string; onBack: () => void }) {
         setError(result.error)
         return
       }
-      // Session is now in cookies — navigate to role selection
       router.refresh()
       router.push('/onboarding/role')
     })
@@ -213,7 +211,7 @@ function OtpStep({ email, onBack }: { email: string; onBack: () => void }) {
         <button
           type="button"
           onClick={onBack}
-          className="label-caps underline decoration-2 underline-offset-4 transition-colors"
+          className="label-caps underline decoration-2 underline-offset-4 transition-colors mt-2"
           style={{ color: '#6e7979', background: 'none', border: 'none', cursor: 'pointer' }}
           onMouseOver={(e) => (e.currentTarget.style.color = '#00595c')}
           onMouseOut={(e) => (e.currentTarget.style.color = '#6e7979')}
@@ -226,9 +224,97 @@ function OtpStep({ email, onBack }: { email: string; onBack: () => void }) {
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/*  Admin Password Step                                            */
+/* ─────────────────────────────────────────────────────────────── */
+function AdminStep({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    startTransition(async () => {
+      const result = await signInWithPasswordAction(email, password)
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        router.refresh()
+        // Admins skip role selection because they're pre-provisioned
+        router.push('/home')
+      }
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="flex flex-col gap-1.5">
+        <label className="label-caps" htmlFor="admin-email" style={{ color: '#00595c' }}>
+          Admin Email
+        </label>
+        <input
+          id="admin-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="admin@university.edu"
+          required
+          className="cv-input"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="label-caps" htmlFor="admin-password" style={{ color: '#00595c' }}>
+          Password
+        </label>
+        <input
+          id="admin-password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          className="cv-input"
+        />
+      </div>
+
+      {error && (
+        <p className="text-sm px-1" style={{ color: '#ba1a1a', fontFamily: 'var(--font-jakarta)' }}>
+          {error}
+        </p>
+      )}
+
+      <div className="pt-3">
+        <button type="submit" className="btn-amber" disabled={isPending}>
+          <span>{isPending ? 'Authenticating…' : 'Log In Securely'}</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>lock</span>
+        </button>
+      </div>
+
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={onBack}
+          className="label-caps underline decoration-2 underline-offset-4 transition-colors mt-2"
+          style={{ color: '#6e7979', background: 'none', border: 'none', cursor: 'pointer' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = '#00595c')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#6e7979')}
+        >
+          ← Back to student login
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────── */
 /*  Page                                                           */
 /* ─────────────────────────────────────────────────────────────── */
 export default function VerifyPage() {
+  const [mode, setMode] = useState<'student' | 'admin'>('student')
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [sentEmail, setSentEmail] = useState('')
 
@@ -237,10 +323,17 @@ export default function VerifyPage() {
     setStep('otp')
   }
 
-  const headline = step === 'email' ? <>Welcome to<br />CampusVault.</> : <>Check your<br />inbox.</>
-  const subtitle = step === 'email'
-    ? 'Enter your .edu email to log in or create a new account.'
-    : 'Enter the code we just emailed you.'
+  // Determine headline based on mode and step
+  let headline = <>Welcome to<br />CampusVault.</>
+  let subtitle = 'Enter your .edu email to log in or create a new account.'
+
+  if (mode === 'admin') {
+    headline = <>Admin<br />Portal.</>
+    subtitle = 'Log in with your administrator credentials.'
+  } else if (step === 'otp') {
+    headline = <>Check your<br />inbox.</>
+    subtitle = 'Enter the code we just emailed you.'
+  }
 
   return (
     <main
@@ -251,9 +344,10 @@ export default function VerifyPage() {
       <DoodleCurve />
 
       <div className="w-full max-w-sm relative z-10">
+
         {/* Back card stack layers */}
-        <div className="absolute inset-0" style={{ background: '#dbdad5', border: '2px solid #9aadad', transform: 'rotate(4deg) translate(3px,3px)', borderRadius: 2 }} />
-        <div className="absolute inset-0" style={{ background: '#e4e2dd', border: '2px solid #b0bcbc', transform: 'rotate(2deg) translate(1.5px,1.5px)', borderRadius: 2 }} />
+        <div className="absolute inset-0 top-0" style={{ background: '#dbdad5', border: '2px solid #9aadad', transform: 'rotate(4deg) translate(3px,3px)', borderRadius: 2 }} />
+        <div className="absolute inset-0 top-0" style={{ background: '#e4e2dd', border: '2px solid #b0bcbc', transform: 'rotate(2deg) translate(1.5px,1.5px)', borderRadius: 2 }} />
 
         {/* Foreground pinned card */}
         <div
@@ -280,26 +374,43 @@ export default function VerifyPage() {
               </p>
             </div>
 
-            {step === 'email' ? (
-              <EmailStep onOtpSent={handleOtpSent} />
+            {mode === 'student' ? (
+              step === 'email' ? (
+                <EmailStep onOtpSent={handleOtpSent} />
+              ) : (
+                <OtpStep
+                  email={sentEmail}
+                  onBack={() => setStep('email')}
+                />
+              )
             ) : (
-              <OtpStep
-                email={sentEmail}
-                onBack={() => setStep('email')}
-              />
+              <AdminStep onBack={() => { setMode('student'); setStep('email') }} />
             )}
 
-            <div style={{ marginTop: 32, textAlign: 'center' }}>
-              <a
-                href="#"
-                className="label-caps underline decoration-2 underline-offset-4 transition-colors"
-                style={{ color: '#6e7979' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#00595c')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#6e7979')}
-              >
-                Why do we require this?
-              </a>
-            </div>
+            {/* Subtle admin link — only show on student email step */}
+            {mode === 'student' && step === 'email' && (
+              <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px dashed #bec9c9' }}>
+                <button
+                  onClick={() => setMode('admin')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-jakarta)',
+                    fontSize: '0.8rem',
+                    color: '#6e7979',
+                    letterSpacing: '0.02em',
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = '#00595c')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = '#6e7979')}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle', marginRight: 4 }}>admin_panel_settings</span>
+                  Administrator? <span style={{ textDecoration: 'underline', fontWeight: 600 }}>Sign in here</span>
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
       </div>

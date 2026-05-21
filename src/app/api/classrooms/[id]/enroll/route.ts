@@ -15,6 +15,13 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
   if (result.error) return result.error
 
   const { id: classroomId } = await ctx.params
+
+  // Seed classrooms have non-UUID IDs — skip DB entirely
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(classroomId)) {
+    return NextResponse.json({ enrollment_id: null, seat_code: null, already_enrolled: false })
+  }
+
   const supabase = await getSupabaseClient()
   const userId = result.user.id
 

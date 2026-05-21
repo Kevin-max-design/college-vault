@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { isConfigured } from '@/lib/supabase/client'
 
 
-type Role = 'student' | 'faculty' | 'hod' | 'principal'
+type Role = 'student'
 
 interface RoleOption {
   id: Role
@@ -14,35 +14,19 @@ interface RoleOption {
   description: string
 }
 
+/* ── Only the Student role is available for self-service registration ── */
+/* ── Admin roles (Faculty, HOD, Principal, etc.) are pre-provisioned ── */
 const ROLES: RoleOption[] = [
   {
     id: 'student',
     label: 'Student',
     icon: 'school',
-    description: 'View bulletins, join events, and participate in campus life.',
-  },
-  {
-    id: 'faculty',
-    label: 'Faculty',
-    icon: 'cast_for_education',
-    description: 'Post announcements, verify student activities, and manage class groups.',
-  },
-  {
-    id: 'hod',
-    label: 'HOD',
-    icon: 'account_balance',
-    description: 'Department Admin. Oversee faculty posts and department-wide notices.',
-  },
-  {
-    id: 'principal',
-    label: 'Principal',
-    icon: 'admin_panel_settings',
-    description: 'Super Admin. Full access to all campus communications and verifications.',
+    description: 'View bulletins, join classrooms, participate in discussions, and access the campus marketplace.',
   },
 ]
 
 export default function RolePage() {
-  const [selected, setSelected] = useState<Role>('faculty')
+  const [selected] = useState<Role>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -76,10 +60,6 @@ export default function RolePage() {
     } else {
       router.push('/onboarding/profile')
     }
-  }
-
-  function handleSkip() {
-    router.push('/onboarding/profile')
   }
 
 
@@ -187,24 +167,23 @@ export default function RolePage() {
               marginBottom: 16,
             }}
           >
-            Choose<br />Your Role
+            Confirm<br />Your Role
           </h1>
 
           <p style={{ fontSize: '1rem', lineHeight: 1.6, color: '#3e4949', maxWidth: 340, margin: '0 auto' }}>
-            Select your primary affiliation to tailor your campus bulletin experience. Your role determines what you can post and verify.
+            You&#39;re signing up as a <strong style={{ color: '#00595c' }}>Student</strong>. Confirm below to continue setting up your campus profile.
           </p>
         </div>
 
-        {/* Role Cards */}
+        {/* Role Card — Student only, auto-selected */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {ROLES.map((role) => {
             const isSelected = selected === role.id
             return (
-              <button
+              <div
                 key={role.id}
-                onClick={() => setSelected(role.id)}
                 className={`role-card${isSelected ? ' selected' : ''}`}
-                style={{ textAlign: 'left' }}
+                style={{ textAlign: 'left', cursor: 'default' }}
               >
                 {/* Check badge */}
                 {isSelected && (
@@ -281,18 +260,24 @@ export default function RolePage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    color: isSelected ? '#fea619' : '#00595c',
+                    color: '#fea619',
                     marginTop: 14,
                   }}
                 >
-                  <span>{isSelected ? 'Selected' : 'Select'}</span>
-                  {!isSelected && (
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
-                  )}
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  <span>Auto-selected</span>
                 </div>
-              </button>
+              </div>
             )
           })}
+        </div>
+
+        {/* Info note about admin roles */}
+        <div className="flex items-start gap-2 px-1">
+          <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: '#fea619', fontSize: 18, fontVariationSettings: '"FILL" 1' }}>info</span>
+          <p className="text-sm leading-snug" style={{ color: '#6e7979', fontFamily: 'var(--font-jakarta)' }}>
+            Faculty, HOD, and admin roles are provisioned by the institution. If you&#39;re staff, use the <strong style={{ color: '#00595c' }}>Admin login</strong> instead.
+          </p>
         </div>
 
         {error && (
@@ -319,29 +304,6 @@ export default function RolePage() {
       >
         {/* Max-width alignment with content */}
         <div style={{ maxWidth: 520, margin: '0 auto', width: '100%', display: 'flex', gap: 12 }}>
-          <button
-            onClick={handleSkip}
-            disabled={loading}
-            style={{
-              flex: 1,
-              background: '#fbf9f4',
-              border: '2px solid #00595c',
-              color: '#00595c',
-              padding: '14px 16px',
-              fontFamily: 'var(--font-jakarta)',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              transition: 'background 0.2s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.background = '#f0eee9')}
-            onMouseOut={(e) => (e.currentTarget.style.background = '#fbf9f4')}
-          >
-            Skip for Now
-          </button>
-
           <button
             onClick={handleContinue}
             disabled={loading}

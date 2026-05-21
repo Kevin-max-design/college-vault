@@ -365,6 +365,10 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   const [seatCode, setSeatCode] = useState<string | null>(null)
   const router = useRouter()
 
+  // Seed classrooms have non-UUID IDs (e.g. "y2-1") — disable DB operations
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isSeedClassroom = !UUID_RE.test(classroom.id)
+
   // Auto-enroll on first visit and get seat code
   useEffect(() => {
     fetch(`/api/classrooms/${classroom.id}/enroll`, { method: 'POST' })
@@ -471,18 +475,38 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
         </div>
       </div>
 
+      {/* Demo banner for seed classrooms */}
+      {isSeedClassroom && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: '#ffddb8', border: '2px solid #855300',
+          padding: '10px 14px', marginBottom: 20,
+          fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#855300', fontVariationSettings: '"FILL" 1' }}>info</span>
+          <span><strong>Demo classroom</strong> — posts are disabled. Create a real classroom to interact.</span>
+        </div>
+      )}
+
       {/* Section header + Post button */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <h2 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.5rem', color: '#1b1c19' }}>
           Doubts &amp; Threads
         </h2>
-        <button onClick={() => setShowModal(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
-          background: '#fea619', border: '2px solid #00595c', color: '#684000',
-          fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
-          letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
-          boxShadow: '3px 3px 0 0 #00595c',
-        }}>
+        <button
+          onClick={() => !isSeedClassroom && setShowModal(true)}
+          disabled={isSeedClassroom}
+          title={isSeedClassroom ? 'Demo classroom — posting disabled' : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+            background: isSeedClassroom ? '#e0ddd8' : '#fea619',
+            border: '2px solid #00595c', color: isSeedClassroom ? '#6e7979' : '#684000',
+            fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: isSeedClassroom ? 'not-allowed' : 'pointer',
+            boxShadow: isSeedClassroom ? 'none' : '3px 3px 0 0 #00595c',
+          }}
+        >
           <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
           Post
         </button>
