@@ -354,6 +354,7 @@ function ThreadNode({
   depth, 
   classroomId, 
   userId, 
+  userRole,
   currentUserHandle,
   currentUserId,
   onNewReply, 
@@ -362,7 +363,7 @@ function ThreadNode({
   onOpenChat,
   isSeedClassroom 
 }: {
-  post: Post; depth: number; classroomId: string; userId: string
+  post: Post; depth: number; classroomId: string; userId: string; userRole: string
   currentUserHandle: string; currentUserId: string
   onNewReply: (parentId: string, newPost: Post) => void
   onResolve: (id: string) => void
@@ -587,7 +588,7 @@ function ThreadNode({
               </div>
 
               {/* Only Others Can Comment Lock */}
-              {!isMe ? (
+              {(!isMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
                 <button onClick={() => setShowReplyBox(v => !v)} style={{
                   display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px',
                   border: '1.5px solid #bec9c9', background: 'transparent',
@@ -642,6 +643,7 @@ function ThreadNode({
             depth={depth + 1}
             classroomId={classroomId}
             userId={userId}
+            userRole={userRole}
             currentUserHandle={currentUserHandle}
             currentUserId={currentUserId}
             onNewReply={onNewReply}
@@ -681,7 +683,14 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       storedId = 'u_' + Math.random().toString(36).substring(2, 11)
       localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
     }
-    if (!storedHandle) {
+    
+    if (userRole === 'hod') {
+      storedHandle = `HOD ${classroom.department || 'CSE'}`
+      localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
+    } else if (userRole === 'faculty') {
+      storedHandle = `Faculty_${classroom.department || 'CSE'}`
+      localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
+    } else if (!storedHandle || storedHandle.startsWith('HOD ') || storedHandle.startsWith('Faculty_')) {
       const adjectives = ['Curious', 'Studious', 'Analytical', 'Bright', 'Clever', 'Mindful', 'Academic', 'Creative']
       const nouns = ['Scholar', 'Mind', 'Explorer', 'Thinker', 'Learner', 'Guru', 'Innovator']
       const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
@@ -693,7 +702,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
-  }, [classroom.id])
+  }, [classroom.id, userRole, classroom.department])
 
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
@@ -1066,7 +1075,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
 
       {/* Join the Discussion Box (Author replied restriction) */}
       <div style={{ marginBottom: 24 }}>
-        {!isMainAuthorMe ? (
+        {(!isMainAuthorMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
           <form onSubmit={handlePostDirectComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea
               value={directCommentText}
@@ -1127,6 +1136,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
               depth={0}
               classroomId={classroom.id}
               userId={userId}
+              userRole={userRole}
               currentUserHandle={currentUserHandle}
               currentUserId={currentUserId}
               onNewReply={addReply}
