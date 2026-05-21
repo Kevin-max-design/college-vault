@@ -409,6 +409,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   // Custom unique identifiers (Reddit style) per classroom entry
   const [currentUserId, setCurrentUserId] = useState<string>(userId || 'mock-user')
   const [currentUserHandle, setCurrentUserHandle] = useState<string>('u/Student_Scholar')
+  const [mounted, setMounted] = useState(false)
 
   const router = useRouter()
 
@@ -418,6 +419,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
 
   // Initialize dynamic session nickname upon classroom entry
   useEffect(() => {
+    setMounted(true)
     let storedId = localStorage.getItem(`cv_unique_id_${classroom.id}`)
     let storedHandle = localStorage.getItem(`cv_unique_handle_${classroom.id}`)
     
@@ -438,6 +440,19 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
   }, [classroom.id])
+
+  if (!mounted) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
+        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
+          Loading Classroom...
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
+
 
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
