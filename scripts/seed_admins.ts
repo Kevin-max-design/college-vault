@@ -11,12 +11,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 const ADMINS = [
-  { email: 'principal@campusvault.edu', password: 'Password123!', role: 'principal', name: 'Dr. Principal' },
-  { email: 'hod.cse@campusvault.edu', password: 'Password123!', role: 'hod', name: 'HOD Computer Science' },
-  { email: 'faculty.cs101@campusvault.edu', password: 'Password123!', role: 'faculty', name: 'Prof. CS101' },
-  { email: 'admin.ao@campusvault.edu', password: 'Password123!', role: 'ao_office', name: 'Admin Officer' },
-  { email: 'admin.exam@campusvault.edu', password: 'Password123!', role: 'exam_cell', name: 'Exam Controller' },
-  { email: 'admin.placement@campusvault.edu', password: 'Password123!', role: 'placement', name: 'Placement Cell' },
+  { email: 'principal@campusvault.edu', password: 'Password123!', role: 'principal', name: 'Dr. Principal', department: 'MATHS' },
+  { email: 'hod.cse@campusvault.edu', password: 'Password123!', role: 'hod', name: 'HOD Computer Science', department: 'CSE' },
+  { email: 'hod.cseds@campusvault.edu', password: 'Password123!', role: 'hod', name: 'Dr. DS HOD', department: 'CSE-DS' },
+  { email: 'faculty.cs101@campusvault.edu', password: 'Password123!', role: 'faculty', name: 'Prof. CS101', department: 'CSE' },
+  { email: 'admin.ao@campusvault.edu', password: 'Password123!', role: 'ao_office', name: 'Admin Officer', department: '' },
+  { email: 'admin.exam@campusvault.edu', password: 'Password123!', role: 'exam_cell', name: 'Exam Controller', department: '' },
+  { email: 'admin.placement@campusvault.edu', password: 'Password123!', role: 'placement', name: 'Placement Cell', department: '' },
 ]
 
 async function seedAdmins() {
@@ -33,8 +34,26 @@ async function seedAdmins() {
     if (authError) {
       if (authError.message.includes('already registered')) {
         console.log(`User ${admin.email} already exists. Attempting to update profile...`)
-        // We can optionally fetch the user ID to update the profile if it exists,
-        // but for simplicity we'll just log and continue.
+        // We need to fetch the existing user's ID to update their profile role/department
+        const { data: { users } } = await supabase.auth.admin.listUsers()
+        const existingUser = users.find(u => u.email === admin.email)
+        if (existingUser) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({ 
+              id: existingUser.id, 
+              email: admin.email,
+              full_name: admin.name,
+              role: admin.role,
+              department: admin.department,
+              otp_verified: true
+            })
+          if (profileError) {
+            console.error(`Error updating existing profile for ${admin.email}:`, profileError)
+          } else {
+            console.log(`Updated existing profile for ${admin.email}`)
+          }
+        }
       } else {
         console.error(`Error creating ${admin.email}:`, authError)
       }
@@ -47,7 +66,7 @@ async function seedAdmins() {
     // Wait a moment for trigger to create profile (if trigger exists)
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    // 2. Update their profile with the correct role
+    // 2. Update their profile with the correct role & department
     const { error: profileError } = await supabase
       .from('profiles')
       .upsert({ 
@@ -55,6 +74,7 @@ async function seedAdmins() {
         email: admin.email,
         full_name: admin.name,
         role: admin.role,
+        department: admin.department,
         otp_verified: true
       })
 
