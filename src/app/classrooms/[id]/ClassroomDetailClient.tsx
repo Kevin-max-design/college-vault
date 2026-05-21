@@ -441,19 +441,6 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     setCurrentUserHandle(storedHandle)
   }, [classroom.id])
 
-  if (!mounted) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
-        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
-          Loading Classroom...
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
-    )
-  }
-
-
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
     if (isSeedClassroom) {
@@ -468,11 +455,6 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }
   }, [classroom.id, isSeedClassroom])
 
-  const saveLocalPosts = (updatedPosts: Post[]) => {
-    setPosts(updatedPosts)
-    localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
-  }
-
   // Auto-enroll on first visit and get seat code
   useEffect(() => {
     fetch(`/api/classrooms/${classroom.id}/enroll`, { method: 'POST' })
@@ -480,6 +462,23 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       .then(data => { if (data?.seat_code) setSeatCode(data.seat_code) })
       .catch(() => {})
   }, [classroom.id])
+
+  const saveLocalPosts = (updatedPosts: Post[]) => {
+    setPosts(updatedPosts)
+    localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
+  }
+
+  if (!mounted) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
+        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
+          Loading Classroom...
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
 
   const openDoubtCount = posts.filter(p => p.type === 'doubt' && !p.resolved && !p.parent_id).length
 

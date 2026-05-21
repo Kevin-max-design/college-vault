@@ -695,18 +695,6 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     setCurrentUserHandle(storedHandle)
   }, [classroom.id])
 
-  if (!mounted) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
-        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
-          Loading Classroom...
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
-    )
-  }
-
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {
     if (isSeedClassroom) {
@@ -724,6 +712,18 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   const saveLocalPosts = (updatedPosts: Post[]) => {
     setPosts(updatedPosts)
     localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
+  }
+
+  if (!mounted) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
+        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
+          Loading Classroom...
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
   }
 
   // Helper to add a reply to the state tree
