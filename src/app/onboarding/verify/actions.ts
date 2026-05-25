@@ -34,9 +34,11 @@ export async function verifyOtpAction(
   const cookieStore = await cookies()
   const supabase = makeSupabase(cookieStore)
 
-  // Dev/admin bypass: code '000000' works anywhere the service role key is available
+  // Dev-only bypass: code '000000' is ONLY allowed in development mode
+  // This is automatically disabled in production builds on Vercel
+  const isDevMode = process.env.NODE_ENV !== 'production'
   const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-  const devBypass = hasAdminKey && otp.trim() === '000000'
+  const devBypass = isDevMode && hasAdminKey && otp.trim() === '000000'
 
   if (devBypass && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const adminSupabase = createServerClient(
@@ -109,8 +111,9 @@ export async function verifyOtpAction(
 export async function sendOtpAction(
   email: string
 ): Promise<{ success?: boolean; error?: string }> {
-  // Skip sending OTP if service role key is available (bypass mode)
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  // Skip sending OTP only in dev mode (bypass mode)
+  // In production, always send the real OTP email
+  if (process.env.NODE_ENV !== 'production' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { success: true }
   }
 

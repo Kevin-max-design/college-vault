@@ -684,11 +684,12 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
     }
     
+    const dept = classroom.department || 'CSE'
     if (userRole === 'hod') {
-      storedHandle = `HOD ${classroom.department || 'CSE'}`
+      storedHandle = `HOD ${dept}`
       localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
     } else if (userRole === 'faculty') {
-      storedHandle = `Faculty_${classroom.department || 'CSE'}`
+      storedHandle = `Faculty_${dept}`
       localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
     } else if (!storedHandle || storedHandle.startsWith('HOD ') || storedHandle.startsWith('Faculty_')) {
       const adjectives = ['Curious', 'Studious', 'Analytical', 'Bright', 'Clever', 'Mindful', 'Academic', 'Creative']
@@ -702,7 +703,8 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
-  }, [classroom.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroom.id, classroom.department, userRole])
 
   // Load posts from localStorage if it's a seed classroom
   useEffect(() => {

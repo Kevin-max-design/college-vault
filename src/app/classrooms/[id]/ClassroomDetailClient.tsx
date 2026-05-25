@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -462,6 +462,49 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       .then(data => { if (data?.seat_code) setSeatCode(data.seat_code) })
       .catch(() => {})
   }, [classroom.id])
+
+  // ── Supabase Realtime: live new-post subscription (real classrooms only) ──
+  useEffect(() => {
+    if (isSeedClassroom) return // seed classrooms use localStorage, no Realtime
+
+    let channel: ReturnType<ReturnType<typeof import('@/utils/supabase/client')['createClient']>['channel']> | null = null
+
+    import('@/utils/supabase/client').then(({ createClient }) => {
+      const supabase = createClient()
+      channel = supabase
+        .channel(`classroom-posts-${classroom.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
+          async (payload) => {
+            const newPost = payload.new as { id: string; content: string; type: string; resolved: boolean; created_at: string; parent_id: string | null; author_id: string }
+            // Fetch full post with author and reactions
+            const { data } = await supabase
+              .from('posts')
+              .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
+              .eq('id', newPost.id)
+              .single()
+            if (!data) return
+            const fullPost = { ...data, author: Array.isArray(data.author) ? data.author[0] : data.author, reactions: data.reactions ?? [], replies: [] } as Post
+            setPosts(prev => {
+              // Avoid duplicates
+              if (prev.some(p => p.id === fullPost.id)) return prev
+              if (fullPost.parent_id) return prev // replies handled separately
+              return [fullPost, ...prev]
+            })
+          }
+        )
+        .subscribe()
+    })
+
+    return () => {
+      if (channel) {
+        import('@/utils/supabase/client').then(({ createClient }) => {
+          createClient().removeChannel(channel!)
+        })
+      }
+    }
+  }, [classroom.id, isSeedClassroom])
 
   const saveLocalPosts = (updatedPosts: Post[]) => {
     setPosts(updatedPosts)

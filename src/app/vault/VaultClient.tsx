@@ -41,6 +41,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [successToast, setSuccessToast] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -79,6 +80,9 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
         setListings([newListing, ...listings])
         setIsModalOpen(false)
         setFormData({ title: '', description: '', price: '', type: 'buy', category: 'books' })
+        // Show success toast
+        setSuccessToast(true)
+        setTimeout(() => setSuccessToast(false), 3000)
       } else {
         const error = await res.json()
         alert(error.error || 'Failed to post listing')
@@ -92,6 +96,23 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
 
   return (
     <div className="relative min-h-screen">
+      {/* ── Success Toast ─────────────────────────────────────────── */}
+      {successToast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 200,
+          background: '#00595c', color: '#fff',
+          border: '2px solid #002021',
+          padding: '12px 20px',
+          fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.9rem',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: '4px 4px 0 0 #002021',
+          animation: 'slideInRight 0.3s ease',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>check_circle</span>
+          Listing posted successfully!
+        </div>
+      )}
+
       {/* ── Search & Filter Header ───────────────────────────────── */}
       <div className="sticky top-0 z-40" style={{ background: '#fdfcf8', borderBottom: '2px solid #00595c', padding: '16px 20px' }}>
         <input
@@ -166,9 +187,32 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       {/* ── Listings Grid ───────────────────────────────────────── */}
       <div style={{ padding: '20px' }}>
         {filteredListings.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6e7979' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>inventory_2</span>
-            <p style={{ fontFamily: 'var(--font-jakarta)' }}>No items found. Try adjusting your filters.</p>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6e7979' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 56, marginBottom: 16, opacity: 0.4, display: 'block', color: '#00595c' }}>inventory_2</span>
+            <p style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.4rem', fontWeight: 700, color: '#1b1c19', marginBottom: 8 }}>
+              {listings.length === 0 ? 'Nothing listed yet' : 'No items match your filters'}
+            </p>
+            <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', color: '#6e7979', marginBottom: 24 }}>
+              {listings.length === 0
+                ? 'Be the first to sell or rent something to your classmates!'
+                : 'Try clearing your filters or searching for something else.'}
+            </p>
+            {listings.length === 0 && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                style={{
+                  background: '#fea619', color: '#684000',
+                  border: '2px solid #855300', padding: '10px 24px',
+                  fontFamily: 'var(--font-jakarta)', fontWeight: 700,
+                  fontSize: '0.9rem', cursor: 'pointer', borderRadius: 2,
+                  boxShadow: '3px 3px 0 0 #855300', display: 'inline-flex',
+                  alignItems: 'center', gap: 6,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</span>
+                Post Your First Listing
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-6">
