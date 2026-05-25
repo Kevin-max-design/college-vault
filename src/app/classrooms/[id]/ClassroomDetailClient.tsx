@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface Author { id: string; full_name: string; avatar_url: string | null; role: string }
@@ -416,6 +417,8 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   // Seed classrooms have non-UUID IDs (e.g. "y2-1") — disable DB operations
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
+  // Debounce timer ref for localStorage writes
+  const lsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Initialize dynamic session nickname upon classroom entry
   useEffect(() => {
@@ -467,49 +470,47 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   useEffect(() => {
     if (isSeedClassroom) return // seed classrooms use localStorage, no Realtime
 
-    let channel: ReturnType<ReturnType<typeof import('@/utils/supabase/client')['createClient']>['channel']> | null = null
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`classroom-posts-${classroom.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
+        async (payload) => {
+          const newPost = payload.new as { id: string; parent_id: string | null }
+          // Fetch full post with author + reactions
+          const { data } = await supabase
+            .from('posts')
+            .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
+            .eq('id', newPost.id)
+            .single()
+          if (!data) return
+          const fullPost = {
+            ...data,
+            author: Array.isArray(data.author) ? data.author[0] : data.author,
+            reactions: data.reactions ?? [],
+            replies: []
+          } as Post
+          setPosts(prev => {
+            if (prev.some(p => p.id === fullPost.id)) return prev // dedupe
+            if (fullPost.parent_id) return prev // replies handled separately
+            return [fullPost, ...prev]
+          })
+        }
+      )
+      .subscribe()
 
-    import('@/utils/supabase/client').then(({ createClient }) => {
-      const supabase = createClient()
-      channel = supabase
-        .channel(`classroom-posts-${classroom.id}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
-          async (payload) => {
-            const newPost = payload.new as { id: string; content: string; type: string; resolved: boolean; created_at: string; parent_id: string | null; author_id: string }
-            // Fetch full post with author and reactions
-            const { data } = await supabase
-              .from('posts')
-              .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
-              .eq('id', newPost.id)
-              .single()
-            if (!data) return
-            const fullPost = { ...data, author: Array.isArray(data.author) ? data.author[0] : data.author, reactions: data.reactions ?? [], replies: [] } as Post
-            setPosts(prev => {
-              // Avoid duplicates
-              if (prev.some(p => p.id === fullPost.id)) return prev
-              if (fullPost.parent_id) return prev // replies handled separately
-              return [fullPost, ...prev]
-            })
-          }
-        )
-        .subscribe()
-    })
-
-    return () => {
-      if (channel) {
-        import('@/utils/supabase/client').then(({ createClient }) => {
-          createClient().removeChannel(channel!)
-        })
-      }
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [classroom.id, isSeedClassroom])
 
-  const saveLocalPosts = (updatedPosts: Post[]) => {
+  const saveLocalPosts = useCallback((updatedPosts: Post[]) => {
     setPosts(updatedPosts)
-    localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
-  }
+    // Debounce localStorage write — max 1 write per 300ms
+    if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+    lsTimerRef.current = setTimeout(() => {
+      localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
+    }, 300)
+  }, [classroom.id])
 
   if (!mounted) {
     return (
@@ -523,28 +524,36 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     )
   }
 
-  const openDoubtCount = posts.filter(p => p.type === 'doubt' && !p.resolved && !p.parent_id).length
-
   /* Add a reply into the tree in-memory (needed for classmate's auto reply trigger) */
-  function addReply(parentId: string, newPost: Post) {
+  const addReply = useCallback((parentId: string, newPost: Post) => {
     function insertInto(list: Post[]): Post[] {
       return list.map(p => {
         if (p.id === parentId) return { ...p, replies: [{ ...newPost, replies: [] }, ...(p.replies ?? [])] }
         return { ...p, replies: insertInto(p.replies ?? []) }
       })
     }
-    const updated = insertInto(posts)
-    if (isSeedClassroom) {
-      saveLocalPosts(updated)
-    } else {
-      setPosts(updated)
-    }
-  }
+    setPosts(prev => {
+      const updated = insertInto(prev)
+      if (isSeedClassroom) {
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+      }
+      return updated
+    })
+  }, [classroom.id, isSeedClassroom])
 
-  async function handleResolve(postId: string) {
+  const handleResolve = useCallback(async (postId: string) => {
     if (isSeedClassroom) {
-      const updated = posts.map(p => p.id === postId ? { ...p, resolved: !p.resolved } : p)
-      saveLocalPosts(updated)
+      setPosts(prev => {
+        const updated = prev.map(p => p.id === postId ? { ...p, resolved: !p.resolved } : p)
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+        return updated
+      })
       return
     }
     const res = await fetch(`/api/posts/${postId}/resolve`, { method: 'PATCH' })
@@ -552,26 +561,30 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       const updated = await res.json()
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, resolved: updated.resolved } : p))
     }
-  }
+  }, [classroom.id, isSeedClassroom])
 
-  async function handleVote(postId: string, direction: 'up' | 'down') {
+  const handleVote = useCallback(async (postId: string, direction: 'up' | 'down') => {
+    function updateVote(list: Post[]): Post[] {
+      return list.map(p => {
+        if (p.id === postId) {
+          const reactions = p.reactions.filter(r => r.user_id !== userId)
+          const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+          if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+          return { ...p, reactions }
+        }
+        if (p.replies) return { ...p, replies: updateVote(p.replies) }
+        return p
+      })
+    }
     if (isSeedClassroom) {
-      function updateVote(list: Post[]): Post[] {
-        return list.map(p => {
-          if (p.id === postId) {
-            let reactions = p.reactions.filter(r => r.user_id !== userId)
-            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-            if (!clickedBefore) {
-              reactions.push({ emoji: direction, user_id: userId })
-            }
-            return { ...p, reactions }
-          }
-          if (p.replies) return { ...p, replies: updateVote(p.replies) }
-          return p
-        })
-      }
-      const updated = updateVote(posts)
-      saveLocalPosts(updated)
+      setPosts(prev => {
+        const updated = updateVote(prev)
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+        return updated
+      })
       return
     }
     const res = await fetch(`/api/posts/${postId}/react`, {
@@ -580,22 +593,19 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     })
     if (res.ok) {
       const result = await res.json()
-      function updateVote(list: Post[]): Post[] {
-        return list.map(p => {
+      setPosts(prev => {
+        return prev.map(p => {
           if (p.id === postId) {
-            let reactions = p.reactions.filter(r => r.user_id !== userId)
-            if (result.action !== 'removed') {
-              reactions.push({ emoji: direction, user_id: userId })
-            }
+            const reactions = p.reactions.filter(r => r.user_id !== userId)
+            if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
             return { ...p, reactions }
           }
           if (p.replies) return { ...p, replies: updateVote(p.replies) }
           return p
         })
-      }
-      setPosts(prev => updateVote(prev))
+      })
     }
-  }
+  }, [classroom.id, isSeedClassroom, userId])
 
   function handlePosted(newPost: Post) {
     let updated = posts
@@ -641,9 +651,15 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }, 2000)
   }
 
-  // Build thread tree, then filter top-level posts
-  const tree = buildTree(posts)
-  const filtered = filter === 'all' ? tree : tree.filter(p => p.type === filter)
+  // ── Memoized: build tree + filter only when posts/filter change ──
+  const openDoubtCount = useMemo(
+    () => posts.filter(p => p.type === 'doubt' && !p.resolved && !p.parent_id).length,
+    [posts]
+  )
+  const filtered = useMemo(() => {
+    const tree = buildTree(posts)
+    return filter === 'all' ? tree : tree.filter(p => p.type === filter)
+  }, [posts, filter])
 
   return (
     <div style={{ padding: '20px 18px 0' }}>

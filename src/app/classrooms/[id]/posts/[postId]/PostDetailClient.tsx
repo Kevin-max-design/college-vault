@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface Author { id: string; full_name: string; avatar_url: string | null; role: string }
@@ -670,6 +671,8 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   
   const [activeChatUser, setActiveChatUser] = useState<{ id: string; handle: string } | null>(null)
 
+  const lsTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
 
@@ -720,10 +723,64 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     }
   }, [classroom.id, isSeedClassroom])
 
-  const saveLocalPosts = (updatedPosts: Post[]) => {
+  // ── M3: Supabase Realtime live update subscription for comments/replies ──
+  useEffect(() => {
+    if (isSeedClassroom) return
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`post-detail-posts-${classroom.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
+        async (payload) => {
+          const newPost = payload.new as { id: string; parent_id: string | null }
+          // Fetch full post with author + reactions
+          const { data } = await supabase
+            .from('posts')
+            .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
+            .eq('id', newPost.id)
+            .single()
+          if (!data) return
+          const fullPost = {
+            ...data,
+            author: Array.isArray(data.author) ? data.author[0] : data.author,
+            reactions: data.reactions ?? [],
+            replies: []
+          } as Post
+          
+          setPosts(prev => {
+            if (prev.some(p => p.id === fullPost.id)) return prev // dedupe
+            if (fullPost.parent_id) {
+              function insertInto(list: Post[]): Post[] {
+                return list.map(p => {
+                  if (p.id === fullPost.parent_id) {
+                    if (p.replies?.some(r => r.id === fullPost.id)) return p
+                    return { ...p, replies: [{ ...fullPost, replies: [] }, ...(p.replies ?? [])] }
+                  }
+                  return { ...p, replies: insertInto(p.replies ?? []) }
+                })
+              }
+              return insertInto(prev)
+            }
+            return [fullPost, ...prev]
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [classroom.id, isSeedClassroom])
+
+  const saveLocalPosts = useCallback((updatedPosts: Post[]) => {
     setPosts(updatedPosts)
-    localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
-  }
+    if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+    lsTimerRef.current = setTimeout(() => {
+      localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
+    }, 300)
+  }, [classroom.id])
 
   if (!mounted) {
     return (
@@ -738,25 +795,35 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   }
 
   // Helper to add a reply to the state tree
-  function addReply(parentId: string, newPost: Post) {
+  const addReply = useCallback((parentId: string, newPost: Post) => {
     function insertInto(list: Post[]): Post[] {
       return list.map(p => {
         if (p.id === parentId) return { ...p, replies: [{ ...newPost, replies: [] }, ...(p.replies ?? [])] }
         return { ...p, replies: insertInto(p.replies ?? []) }
       })
     }
-    const updated = insertInto(posts)
-    if (isSeedClassroom) {
-      saveLocalPosts(updated)
-    } else {
-      setPosts(updated)
-    }
-  }
+    setPosts(prev => {
+      const updated = insertInto(prev)
+      if (isSeedClassroom) {
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+      }
+      return updated
+    })
+  }, [classroom.id, isSeedClassroom])
 
-  async function handleResolve(id: string) {
+  const handleResolve = useCallback(async (id: string) => {
     if (isSeedClassroom) {
-      const updated = posts.map(p => p.id === id ? { ...p, resolved: !p.resolved } : p)
-      saveLocalPosts(updated)
+      setPosts(prev => {
+        const updated = prev.map(p => p.id === id ? { ...p, resolved: !p.resolved } : p)
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+        return updated
+      })
       return
     }
     const res = await fetch(`/api/posts/${id}/resolve`, { method: 'PATCH' })
@@ -764,26 +831,30 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       const updated = await res.json()
       setPosts(prev => prev.map(p => p.id === id ? { ...p, resolved: updated.resolved } : p))
     }
-  }
+  }, [classroom.id, isSeedClassroom])
 
-  async function handleVote(id: string, direction: 'up' | 'down') {
+  const handleVote = useCallback(async (id: string, direction: 'up' | 'down') => {
+    function updateVote(list: Post[]): Post[] {
+      return list.map(p => {
+        if (p.id === id) {
+          const reactions = p.reactions.filter(r => r.user_id !== userId)
+          const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+          if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+          return { ...p, reactions }
+        }
+        if (p.replies) return { ...p, replies: updateVote(p.replies) }
+        return p
+      })
+    }
     if (isSeedClassroom) {
-      function updateVote(list: Post[]): Post[] {
-        return list.map(p => {
-          if (p.id === id) {
-            let reactions = p.reactions.filter(r => r.user_id !== userId)
-            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-            if (!clickedBefore) {
-              reactions.push({ emoji: direction, user_id: userId })
-            }
-            return { ...p, reactions }
-          }
-          if (p.replies) return { ...p, replies: updateVote(p.replies) }
-          return p
-        })
-      }
-      const updated = updateVote(posts)
-      saveLocalPosts(updated)
+      setPosts(prev => {
+        const updated = updateVote(prev)
+        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
+        lsTimerRef.current = setTimeout(() => {
+          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
+        }, 300)
+        return updated
+      })
       return
     }
     const res = await fetch(`/api/posts/${id}/react`, {
@@ -792,37 +863,35 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     })
     if (res.ok) {
       const result = await res.json()
-      function updateVote(list: Post[]): Post[] {
-        return list.map(p => {
+      setPosts(prev => {
+        return prev.map(p => {
           if (p.id === id) {
-            let reactions = p.reactions.filter(r => r.user_id !== userId)
-            if (result.action !== 'removed') {
-              reactions.push({ emoji: direction, user_id: userId })
-            }
+            const reactions = p.reactions.filter(r => r.user_id !== userId)
+            if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
             return { ...p, reactions }
           }
           if (p.replies) return { ...p, replies: updateVote(p.replies) }
           return p
         })
-      }
-      setPosts(prev => updateVote(prev))
+      })
     }
-  }
+  }, [classroom.id, isSeedClassroom, userId])
 
-  function handleOpenChat(recipientId: string, handle: string) {
+  const handleOpenChat = useCallback((recipientId: string, handle: string) => {
     setActiveChatUser({ id: recipientId, handle })
-  }
+  }, [])
 
   // Extract the target sub-tree
-  const map = new Map<string, Post>()
-  posts.forEach(p => map.set(p.id, { ...p, replies: [] }))
-  map.forEach(p => {
-    if (p.parent_id && map.has(p.parent_id)) {
-      map.get(p.parent_id)!.replies!.push(p)
-    }
-  })
-
-  const targetPostNode = map.get(postId) ?? null
+  const targetPostNode = useMemo(() => {
+    const map = new Map<string, Post>()
+    posts.forEach(p => map.set(p.id, { ...p, replies: [] }))
+    map.forEach(p => {
+      if (p.parent_id && map.has(p.parent_id)) {
+        map.get(p.parent_id)!.replies!.push(p)
+      }
+    })
+    return map.get(postId) ?? null
+  }, [posts, postId])
 
   if (!targetPostNode) {
     return (

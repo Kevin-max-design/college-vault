@@ -2,7 +2,19 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
-import BulletinClient from './BulletinClient'
+import dynamic from 'next/dynamic'
+
+const BulletinClient = dynamic(() => import('./BulletinClient'), {
+  loading: () => (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
+      <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
+        Loading Bulletin...
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  )
+})
 
 export default async function BulletinPage() {
   const cookieStore = await cookies()
