@@ -25,7 +25,28 @@ interface Props {
 const SEED_CLASSROOMS: Record<string, {
   id: string; name: string; subject_type: string; type: string
   department: string; year: number; description: string; entry_code: string
-}> = {}
+}> = {
+  'proj-vault-redesign': {
+    id: 'proj-vault-redesign',
+    name: 'Campus Vault Redesign',
+    subject_type: 'core',
+    type: 'project',
+    department: 'Computer Science & Engineering',
+    year: 3,
+    description: 'Collaborative project classroom for building and refining the CampusVault platform. Share UI designs, system architecture notes, and local development solutions.',
+    entry_code: '',
+  },
+  'proj-ml-fundamentals': {
+    id: 'proj-ml-fundamentals',
+    name: 'ML Fundamentals',
+    subject_type: 'elective',
+    type: 'project',
+    department: 'Computer Science & Engineering',
+    year: 3,
+    description: "Study group focused on machine learning foundations, working through Stanford CS229 and Andrew Ng's courses together.",
+    entry_code: '',
+  }
+}
 
 // Flatten the nested structure
 Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
@@ -33,15 +54,18 @@ Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
   Object.entries(years).forEach(([yearStr, classrooms]) => {
     const year = parseInt(yearStr, 10)
     classrooms.forEach(c => {
-      SEED_CLASSROOMS[c.id] = {
-        id: c.id,
-        name: c.name,
-        subject_type: c.subject_type,
-        type: 'study',
-        department: deptLabel,
-        year: year,
-        description: c.description,
-        entry_code: '',
+      // Do not overwrite explicitly defined project classrooms
+      if (!SEED_CLASSROOMS[c.id]) {
+        SEED_CLASSROOMS[c.id] = {
+          id: c.id,
+          name: c.name,
+          subject_type: c.subject_type,
+          type: 'study',
+          department: deptLabel,
+          year: year,
+          description: c.description,
+          entry_code: '',
+        }
       }
     })
   })
@@ -116,6 +140,83 @@ export default async function ClassroomDetailPage({ params }: Props) {
       .eq('resolved', false)
 
     doubtCount = count ?? 0
+  } else {
+    // Curated pre-populated seed posts for project classrooms
+    if (id === 'proj-vault-redesign') {
+      posts = [
+        {
+          id: 'p-vr-1',
+          content: '🚀 PROJECT UPDATE: I have successfully enabled Dynamic imports & route-splitting across the CampusVault platform. The initial bundle size dropped significantly, achieving a 45% faster load time. Let us keep the app responsive!',
+          type: 'announcement',
+          resolved: false,
+          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+          parent_id: null,
+          author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
+          reactions: [{ emoji: 'up', user_id: 'user-1' }, { emoji: 'up', user_id: 'user-2' }],
+          replies: []
+        },
+        {
+          id: 'p-vr-2',
+          content: 'Is anyone else facing issues with Supabase OTP email limits during local testing? Every time I try registering more than 3 students, it throws a rate limit.',
+          type: 'doubt',
+          resolved: true,
+          created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+          parent_id: null,
+          author: { id: 'dev-2', full_name: 'u/Frontend_Ninja', avatar_url: null, role: 'student' },
+          reactions: [{ emoji: 'up', user_id: 'user-3' }],
+          replies: [
+            {
+              id: 'p-vr-2-r1',
+              content: 'Yes! We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs anymore. Make sure to turn off Confirm Email in your local Supabase dashboard settings!',
+              type: 'thread',
+              resolved: false,
+              created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+              parent_id: 'p-vr-2',
+              author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
+              reactions: [{ emoji: 'up', user_id: 'user-2' }],
+              replies: []
+            }
+          ]
+        },
+        {
+          id: 'p-vr-3',
+          content: 'Here is the Figma link for the new CampusVault color guidelines: Amber (#fea619), Teal (#00595c) and Earth-slate. Please follow this style guide for all custom CSS contributions.',
+          type: 'material',
+          resolved: false,
+          created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+          parent_id: null,
+          author: { id: 'designer-1', full_name: 'u/UI_Wizard', avatar_url: null, role: 'student' },
+          reactions: [{ emoji: 'up', user_id: 'user-1' }],
+          replies: []
+        }
+      ]
+    } else if (id === 'proj-ml-fundamentals') {
+      posts = [
+        {
+          id: 'p-ml-1',
+          content: '📢 WEEKLY SEMINAR: We are starting our first hands-on session on convolutional neural networks (CNNs) this Saturday at 2 PM. We will build a handwritten digit classifier from scratch!',
+          type: 'announcement',
+          resolved: false,
+          created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+          parent_id: null,
+          author: { id: 'ml-lead', full_name: 'u/ML_Guru_101', avatar_url: null, role: 'faculty' },
+          reactions: [{ emoji: 'up', user_id: 'user-1' }],
+          replies: []
+        },
+        {
+          id: 'p-ml-2',
+          content: 'Could someone explain why we prefer the ReLU activation function over Sigmoid or Tanh in deep hidden layers of a network? Does it actually prevent vanishing gradients?',
+          type: 'doubt',
+          resolved: false,
+          created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+          parent_id: null,
+          author: { id: 'student-ml', full_name: 'u/Curious_Neural_Net', avatar_url: null, role: 'student' },
+          reactions: [{ emoji: 'up', user_id: 'user-2' }],
+          replies: []
+        }
+      ]
+    }
+    doubtCount = posts.filter(p => p.type === 'doubt' && !p.resolved).length
   }
 
   return (

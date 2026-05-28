@@ -167,17 +167,17 @@ function ClassroomCard({ c, featured }: { c: Classroom; featured?: boolean }) {
 
 /* ── Project Hub Card ────────────────────────────────────────────── */
 interface HubProject {
+  id: string
   title: string
   description: string
   tags: string[]
   members: string[]
-  requestToJoin: boolean
   banner?: string
 }
 
 function ProjectCard({ p }: { p: HubProject }) {
   return (
-    <Link href="/vault" style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
+    <Link href={`/classrooms/${p.id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
       <div className="bg-surface border-2 border-primary shadow-[4px_4px_0_0_#00595c] overflow-hidden hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
         {p.banner && (
           <div className="h-20 bg-surface-container border-b-2 border-primary flex items-center justify-center">
@@ -223,15 +223,9 @@ function ProjectCard({ p }: { p: HubProject }) {
               </span>
             </div>
 
-            {p.requestToJoin ? (
-              <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                Request to Join
-              </button>
-            ) : (
-              <button className="bg-surface text-primary font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
-                View Details
-              </button>
-            )}
+            <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+              Join Project
+            </button>
           </div>
         </div>
       </div>
@@ -241,19 +235,19 @@ function ProjectCard({ p }: { p: HubProject }) {
 
 const PROJECT_HUBS: HubProject[] = [
   {
+    id: 'proj-vault-redesign',
     title: 'Campus Vault Redesign',
     description: 'Join the open-source squad building the next iteration of the student portal. React, Node, and sheer willpower.',
     tags: ['Hackathon Prep', 'Web Dev'],
     members: ['A', 'K', 'R'],
-    requestToJoin: true,
     banner: 'BUILD IT',
   },
   {
+    id: 'proj-ml-fundamentals',
     title: 'ML Fundamentals',
     description: "Working through Andrew Ng's course together. Meet every Thursday in the library.",
     tags: ['Study Group'],
     members: ['M', 'L'],
-    requestToJoin: false,
   },
 ]
 
