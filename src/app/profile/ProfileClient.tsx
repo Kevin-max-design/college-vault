@@ -294,8 +294,8 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
             <form onSubmit={handleSaveProfile} className="space-y-4">
               
               {/* Avatar Edit Section */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-                <div style={{ position: 'relative', width: 90, height: 90 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ position: 'relative', width: 90, height: 90, marginBottom: 8 }}>
                   
                   {/* Spinning dashed amber ring */}
                   <svg
@@ -376,6 +376,40 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
                     }}
                   />
                 </div>
+
+                {/* Explicit Photo Upload Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    background: '#FDFAF5',
+                    border: '1.5px solid #00595c',
+                    boxShadow: '2px 2px 0 0 #00595c',
+                    color: '#00595c',
+                    fontFamily: 'var(--font-jakarta)',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = '#00595c'
+                    e.currentTarget.style.color = '#ffffff'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = '#FDFAF5'
+                    e.currentTarget.style.color = '#00595c'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload</span>
+                  <span>Upload Photo</span>
+                </button>
               </div>
 
               <div>
