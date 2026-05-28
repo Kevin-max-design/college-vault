@@ -13,6 +13,12 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
   if (result.error) return result.error;
 
   const { id } = await ctx.params;
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Classroom not found." }, { status: 404 });
+  }
+
   const supabase = await getSupabaseClient();
 
   const { data, error } = await supabase
@@ -41,6 +47,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   if (result.error) return result.error;
 
   const { id } = await ctx.params;
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Classroom not found." }, { status: 404 });
+  }
+
   const body = await req.json();
 
   const allowed = ["name", "description", "subject_type"];

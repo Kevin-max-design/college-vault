@@ -25,7 +25,28 @@ interface Props {
 const SEED_CLASSROOMS: Record<string, {
   id: string; name: string; subject_type: string; type: string
   department: string; year: number; description: string; entry_code: string
-}> = {}
+}> = {
+  'proj-vault-redesign': {
+    id: 'proj-vault-redesign',
+    name: 'Campus Vault Redesign',
+    subject_type: 'core',
+    type: 'project',
+    department: 'Computer Science & Engineering',
+    year: 3,
+    description: 'Collaborative project classroom for building and refining the CampusVault platform. Share UI designs, system architecture notes, and local development solutions.',
+    entry_code: '',
+  },
+  'proj-ml-fundamentals': {
+    id: 'proj-ml-fundamentals',
+    name: 'ML Fundamentals',
+    subject_type: 'elective',
+    type: 'project',
+    department: 'Computer Science & Engineering',
+    year: 3,
+    description: "Study group focused on machine learning foundations, working through Stanford CS229 and Andrew Ng's courses together.",
+    entry_code: '',
+  }
+}
 
 // Flatten the nested structure
 Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
