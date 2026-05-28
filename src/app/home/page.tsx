@@ -1,33 +1,28 @@
-'use client'
-
-import React, { useState, useEffect } from 'react'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
-import { createClient } from '@/utils/supabase/client'
 
-export default function HomePage() {
-  const [profile, setProfile] = useState<any>(null)
+export default async function HomePage() {
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
 
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url, department, year_of_study')
-            .eq('id', user.id)
-            .single()
-          if (data) {
-            setProfile(data)
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching profile on homepage:', err)
-      }
-    }
-    fetchProfile()
-  }, [])
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/onboarding/verify')
+  }
+
+  let profile = null
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, department, year_of_study')
+      .eq('id', user.id)
+      .single()
+    profile = data
+  } catch (err) {
+    console.error('Error fetching profile server-side on homepage:', err)
+  }
 
   const fullName = profile?.full_name?.trim() || ''
   const firstName = fullName ? (fullName.split(' ')[0] || 'Student') : 'Student'

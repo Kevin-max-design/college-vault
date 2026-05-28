@@ -107,7 +107,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
           throw new Error(`Profile pic upload failed: ${uploadError.message}`)
         } else {
           const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-          finalAvatarUrl = urlData.publicUrl
+          finalAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
         }
       }
 

@@ -116,6 +116,36 @@ interface AppShellProps {
   userInitials?: string
 }
 
+function AvatarImage({ src, initials }: { src?: string | null; initials?: string }) {
+  const [imageFailed, setImageFailed] = useState(false)
+
+  useEffect(() => {
+    setImageFailed(false)
+  }, [src])
+
+  if (src && src.trim() !== '' && !imageFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt="Profile"
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        src={src}
+        onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <span style={{
+      fontFamily: 'var(--font-jakarta)',
+      fontWeight: 700, fontSize: '0.6rem',
+      color: '#FFFFFF', letterSpacing: '0.5px',
+    }}>
+      {initials || 'U'}
+    </span>
+  )
+}
+
 export default function AppShell({
   children,
   pageTitle = 'Campus Vault',
@@ -411,18 +441,7 @@ export default function AppShell({
               transition: 'border-color 0.15s',
             }}
           >
-            {(userAvatarUrl && userAvatarUrl.trim() !== '') ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} src={userAvatarUrl} />
-            ) : (
-              <span style={{
-                fontFamily: 'var(--font-jakarta)',
-                fontWeight: 700, fontSize: '0.6rem',
-                color: C.white, letterSpacing: '0.5px',
-              }}>
-                {userInitials || 'U'}
-              </span>
-            )}
+            <AvatarImage src={userAvatarUrl} initials={userInitials} />
           </Link>
         </div>
       </header>
