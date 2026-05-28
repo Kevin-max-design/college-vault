@@ -29,10 +29,11 @@ export default function HomePage() {
     fetchProfile()
   }, [])
 
-  const firstName = profile?.full_name ? profile.full_name.trim().split(' ')[0] : 'Alex'
-  const initials = profile?.full_name
-    ? profile.full_name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
-    : 'CV'
+  const fullName = profile?.full_name?.trim() || ''
+  const firstName = fullName ? (fullName.split(' ')[0] || 'Student') : 'Student'
+  const initials = fullName
+    ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
+    : 'U'
 
   return (
     <AppShell pageTitle="Campus Vault" userAvatarUrl={profile?.avatar_url} userInitials={initials}>

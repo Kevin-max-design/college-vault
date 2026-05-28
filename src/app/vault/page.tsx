@@ -39,8 +39,10 @@ export default async function VaultPage() {
     .single()
 
   const avatarUrl = profile?.avatar_url ?? null
-  const fullName  = profile?.full_name ?? ''
-  const initials  = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
+  const fullName  = profile?.full_name?.trim() || ''
+  const initials  = fullName
+    ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
+    : 'U'
 
   return (
     <AppShell 

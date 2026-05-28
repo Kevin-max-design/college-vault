@@ -120,7 +120,7 @@ export default function AppShell({
   children,
   pageTitle = 'Campus Vault',
   userAvatarUrl,
-  userInitials = 'CV',
+  userInitials = 'U',
 }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -411,7 +411,7 @@ export default function AppShell({
               transition: 'border-color 0.15s',
             }}
           >
-            {userAvatarUrl ? (
+            {(userAvatarUrl && userAvatarUrl.trim() !== '') ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} src={userAvatarUrl} />
             ) : (
@@ -420,7 +420,7 @@ export default function AppShell({
                 fontWeight: 700, fontSize: '0.6rem',
                 color: C.white, letterSpacing: '0.5px',
               }}>
-                {userInitials}
+                {userInitials || 'U'}
               </span>
             )}
           </Link>
