@@ -82,7 +82,7 @@ function StudentAuthForm() {
           setNeedsConfirmation(true)
         } else {
           router.refresh()
-          router.push('/onboarding/profile')
+          router.push('/onboarding/role')
         }
       }
     })
