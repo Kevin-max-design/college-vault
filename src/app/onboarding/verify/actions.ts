@@ -23,110 +23,22 @@ function makeSupabase(cookieStore: Awaited<ReturnType<typeof cookies>>) {
 }
 
 /**
- * Verify an OTP code on the server so the session is written to
- * HTTP-only cookies (not localStorage). Returns { success } or { error }.
- * The caller is responsible for navigating after success.
+ * Sign in an existing student with email + password.
+ * Returns { success } or { error }.
  */
-export async function verifyOtpAction(
+export async function signInAction(
   email: string,
-  otp: string
+  password: string
 ): Promise<{ success?: boolean; error?: string }> {
   const cookieStore = await cookies()
   const supabase = makeSupabase(cookieStore)
 
-  // Dev-only bypass: code '000000' is allowed in development mode or if explicitly enabled via env var
-  const isDevMode = process.env.NODE_ENV !== 'production'
-  const isDemoBypassEnabled = process.env.ALLOW_OTP_DEMO_BYPASS === 'true'
-  const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-  const devBypass = (isDevMode || isDemoBypassEnabled) && hasAdminKey && otp.trim() === '000000'
-
-  if (devBypass && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const adminSupabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { cookies: { getAll() { return [] }, setAll() {} } }
-    )
-    
-    // Check if user exists
-    const { data: { users } } = await adminSupabase.auth.admin.listUsers()
-    let user = users.find(u => u.email === email)
-    
-    // Set a dev password so we can seamlessly generate a session cookie
-    const devPassword = 'devbypasspassword123!'
-    if (!user) {
-      const { data, error } = await adminSupabase.auth.admin.createUser({ 
-        email, 
-        password: devPassword, 
-        email_confirm: true 
-      })
-      if (error) return { error: error.message }
-      user = data.user
-    } else {
-      const { error } = await adminSupabase.auth.admin.updateUserById(user.id, { 
-        password: devPassword 
-      })
-      if (error) return { error: error.message }
-    }
-
-    // Now sign in securely using the user client (which sets cookies automatically)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password: devPassword,
-    })
-
-    if (error) return { error: error.message }
-    if (!data.session) return { error: 'No session returned from dev bypass.' }
-    
-    return { success: true }
-  }
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    email,
-    token: otp.trim(),
-    type: 'email',
-  })
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    const isExpired =
-      error.message.toLowerCase().includes('expired') ||
-      error.message.toLowerCase().includes('invalid') ||
-      error.message.toLowerCase().includes('otp')
-    return {
-      error: isExpired
-        ? 'This code has expired or is invalid. Request a new one below.'
-        : error.message,
+    if (error.message.toLowerCase().includes('invalid login')) {
+      return { error: 'Incorrect email or password. Please try again.' }
     }
-  }
-
-  if (!data.session) {
-    return { error: 'No session returned. Please try again.' }
-  }
-
-  return { success: true }
-}
-
-/**
- * Send an OTP email. Returns { success } or { error }.
- */
-export async function sendOtpAction(
-  email: string
-): Promise<{ success?: boolean; error?: string }> {
-  // Skip sending OTP in dev mode or if demo bypass is explicitly enabled
-  const isDevMode = process.env.NODE_ENV !== 'production'
-  const isDemoBypassEnabled = process.env.ALLOW_OTP_DEMO_BYPASS === 'true'
-  if ((isDevMode || isDemoBypassEnabled) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { success: true }
-  }
-
-  const cookieStore = await cookies()
-  const supabase = makeSupabase(cookieStore)
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true },
-  })
-
-  if (error) {
     return { error: error.message }
   }
 
@@ -134,7 +46,39 @@ export async function sendOtpAction(
 }
 
 /**
- * Sign in with email and password (for admins). Returns { success } or { error }.
+ * Register a new student with email + password.
+ * Returns { success } or { error } or { success, needsConfirmation } if
+ * email confirmation is enabled in Supabase Auth settings.
+ */
+export async function signUpAction(
+  email: string,
+  password: string
+): Promise<{ success?: boolean; error?: string; needsConfirmation?: boolean }> {
+  const cookieStore = await cookies()
+  const supabase = makeSupabase(cookieStore)
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  })
+
+  if (error) {
+    if (error.message.toLowerCase().includes('already registered')) {
+      return { error: 'An account with this email already exists. Please sign in instead.' }
+    }
+    return { error: error.message }
+  }
+
+  // If email confirmation is disabled in Supabase, session is available immediately
+  if (data.session) return { success: true }
+
+  // Email confirmation is enabled — user must check inbox
+  return { success: true, needsConfirmation: true }
+}
+
+/**
+ * Sign in with email and password (for admin/HOD accounts).
+ * Returns { success } or { error }.
  */
 export async function signInWithPasswordAction(
   email: string,
@@ -143,10 +87,7 @@ export async function signInWithPasswordAction(
   const cookieStore = await cookies()
   const supabase = makeSupabase(cookieStore)
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return { error: error.message }
