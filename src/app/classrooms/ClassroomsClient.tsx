@@ -177,63 +177,65 @@ interface HubProject {
 
 function ProjectCard({ p }: { p: HubProject }) {
   return (
-    <div className="bg-surface border-2 border-primary shadow-[4px_4px_0_0_#00595c] mb-4 overflow-hidden hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
-      {p.banner && (
-        <div className="h-20 bg-surface-container border-b-2 border-primary flex items-center justify-center">
-          <span className="font-newsreader font-black text-2xl text-primary tracking-tight">
-            {p.banner}
-          </span>
-        </div>
-      )}
-      <div className="p-4">
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {p.tags.map(tag => (
-            <span
-              key={tag}
-              className="font-jakarta font-bold text-[0.58rem] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary bg-surface-container"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        <h3 className="font-newsreader font-bold text-base text-on-surface mb-1.5 leading-tight">
-          {p.title}
-        </h3>
-
-        <p className="font-jakarta text-xs text-on-surface-variant leading-relaxed mb-4">
-          {p.description}
-        </p>
-
-        <div className="flex items-center justify-between">
-          {/* Member avatars */}
-          <div className="flex items-center">
-            {p.members.map((m, i) => (
-              <div
-                key={i}
-                className="w-7 h-7 rounded-full border-2 border-surface bg-primary flex items-center justify-center font-jakarta font-bold text-[0.58rem] text-on-primary"
-                style={{ marginLeft: i > 0 ? -8 : 0 }}
-              >
-                {m}
-              </div>
-            ))}
-            <span className="font-jakarta text-[0.65rem] text-outline ml-2">
-              +{p.members.length}
+    <Link href="/vault" style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
+      <div className="bg-surface border-2 border-primary shadow-[4px_4px_0_0_#00595c] overflow-hidden hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
+        {p.banner && (
+          <div className="h-20 bg-surface-container border-b-2 border-primary flex items-center justify-center">
+            <span className="font-newsreader font-black text-2xl text-primary tracking-tight">
+              {p.banner}
             </span>
           </div>
+        )}
+        <div className="p-4">
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {p.tags.map(tag => (
+              <span
+                key={tag}
+                className="font-jakarta font-bold text-[0.58rem] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary bg-surface-container"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
 
-          {p.requestToJoin ? (
-            <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-              Request to Join
-            </button>
-          ) : (
-            <button className="bg-surface text-primary font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
-              View Details
-            </button>
-          )}
+          <h3 className="font-newsreader font-bold text-base text-on-surface mb-1.5 leading-tight">
+            {p.title}
+          </h3>
+
+          <p className="font-jakarta text-xs text-on-surface-variant leading-relaxed mb-4">
+            {p.description}
+          </p>
+
+          <div className="flex items-center justify-between">
+            {/* Member avatars */}
+            <div className="flex items-center">
+              {p.members.map((m, i) => (
+                <div
+                  key={i}
+                  className="w-7 h-7 rounded-full border-2 border-surface bg-primary flex items-center justify-center font-jakarta font-bold text-[0.58rem] text-on-primary"
+                  style={{ marginLeft: i > 0 ? -8 : 0 }}
+                >
+                  {m}
+                </div>
+              ))}
+              <span className="font-jakarta text-[0.65rem] text-outline ml-2">
+                +{p.members.length}
+              </span>
+            </div>
+
+            {p.requestToJoin ? (
+              <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                Request to Join
+              </button>
+            ) : (
+              <button className="bg-surface text-primary font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
+                View Details
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 
