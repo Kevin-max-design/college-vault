@@ -102,7 +102,9 @@ export default async function ClassroomDetailPage({ params }: Props) {
     console.error('[ClassroomDetail] Error loading profile:', err)
   }
 
-  const initials = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
+  const initials = fullName
+    ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
+    : 'U'
 
   const isUuid = UUID_REGEX.test(id)
   let dbClassroom = null

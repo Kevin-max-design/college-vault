@@ -35,13 +35,10 @@ export default async function ClassroomsPage() {
   const department  = profile?.department  ?? 'CSE'
   const userYear    = profile?.year_of_study ?? 1
   const avatarUrl   = profile?.avatar_url ?? null
-  const fullName    = profile?.full_name ?? ''
+  const fullName    = profile?.full_name?.trim() || ''
   const initials    = fullName
-    .split(' ')
-    .slice(0, 2)
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase() || 'CV'
+    ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
+    : 'U'
 
   const deptLabel = DEPT_LABELS[department] ?? 'Computer Science'
 
