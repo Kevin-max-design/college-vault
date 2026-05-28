@@ -71,6 +71,8 @@ Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
   })
 })
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function ClassroomDetailPage({ params }: Props) {
   const { id } = await params
   const cookieStore = await cookies()
@@ -79,67 +81,94 @@ export default async function ClassroomDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/onboarding/verify')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, avatar_url, role')
-    .eq('id', user.id)
-    .single()
+  // Safely fetch profile to avoid any crash
+  let avatarUrl = null
+  let fullName = ''
+  let userRole = 'student'
+  
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, role')
+      .eq('id', user.id)
+      .single()
+      
+    if (profile) {
+      avatarUrl = profile.avatar_url ?? null
+      fullName = profile.full_name ?? ''
+      userRole = (profile.role ?? 'student') as string
+    }
+  } catch (err) {
+    console.error('[ClassroomDetail] Error loading profile:', err)
+  }
 
-  const avatarUrl = profile?.avatar_url ?? null
-  const fullName  = profile?.full_name ?? ''
-  const initials  = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
-  const userRole  = (profile?.role ?? 'student') as string
+  const initials = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
 
-  // Try fetching from DB first
-  const { data: dbClassroom } = await supabase
-    .from('classrooms')
-    .select('id, name, subject_type, type, department, year, description, entry_code')
-    .eq('id', id)
-    .single()
+  const isUuid = UUID_REGEX.test(id)
+  let dbClassroom = null
 
-  // Fall back to seed data if not in DB
+  // Only query DB if the ID is in valid UUID format
+  if (isUuid) {
+    try {
+      const { data } = await supabase
+        .from('classrooms')
+        .select('id, name, subject_type, type, department, year, description, entry_code')
+        .eq('id', id)
+        .single()
+      dbClassroom = data
+    } catch (err) {
+      console.error('[ClassroomDetail] Error loading DB classroom:', err)
+    }
+  }
+
+  // Fall back to seed data if not in DB or if it's a seed ID
   const classroom = dbClassroom ?? SEED_CLASSROOMS[id] ?? null
 
   // If neither DB nor seed, redirect back
   if (!classroom) redirect('/classrooms')
 
-  // Only fetch posts if this is a real DB classroom (seed classrooms have no DB posts)
   const isSeedClassroom = !dbClassroom && !!SEED_CLASSROOMS[id]
 
   let posts: any[] = []
   let doubtCount = 0
 
-  if (!isSeedClassroom) {
-    const { data: rawPosts } = await supabase
-      .from('posts')
-      .select(`
-        id, content, type, resolved, created_at, parent_id,
-        author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role),
-        reactions(emoji, user_id)
-      `)
-      .eq('classroom_id', id)
-      .order('created_at', { ascending: true })
-      .limit(100)
+  if (!isSeedClassroom && isUuid) {
+    try {
+      const { data: rawPosts } = await supabase
+        .from('posts')
+        .select(`
+          id, content, type, resolved, created_at, parent_id,
+          author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role),
+          reactions(emoji, user_id)
+        `)
+        .eq('classroom_id', id)
+        .order('created_at', { ascending: true })
+        .limit(100)
 
-    posts = (rawPosts ?? []).map((p: any) => ({
-      id: p.id,
-      content: p.content,
-      type: p.type,
-      resolved: p.resolved,
-      created_at: p.created_at,
-      parent_id: p.parent_id ?? null,
-      author: Array.isArray(p.author) ? p.author[0] : p.author,
-      reactions: p.reactions ?? [],
-    }))
+      if (rawPosts) {
+        posts = rawPosts.map((p: any) => ({
+          id: p.id,
+          content: p.content,
+          type: p.type,
+          resolved: p.resolved,
+          created_at: p.created_at,
+          parent_id: p.parent_id ?? null,
+          author: Array.isArray(p.author) ? p.author[0] : p.author,
+          reactions: p.reactions ?? [],
+        }))
+      }
 
-    const { count } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('classroom_id', id)
-      .eq('type', 'doubt')
-      .eq('resolved', false)
+      const { count } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('classroom_id', id)
+        .eq('type', 'doubt')
+        .eq('resolved', false)
 
-    doubtCount = count ?? 0
+      doubtCount = count ?? 0
+    } catch (err) {
+      console.error('[ClassroomDetail] Error loading DB posts:', err)
+    }
   } else {
     // Curated pre-populated seed posts for project classrooms
     if (id === 'proj-vault-redesign') {
