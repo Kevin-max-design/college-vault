@@ -95,13 +95,11 @@ export default function ProfileSetupPage() {
         .upload(path, avatarFile, { upsert: true })
 
       if (uploadError) {
-        setError(`Avatar upload failed: ${uploadError.message}`)
-        setLoading(false)
-        return
+        console.warn(`Avatar upload failed: ${uploadError.message}. Proceeding with default avatar.`)
+      } else {
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+        avatarUrl = urlData.publicUrl
       }
-
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-      avatarUrl = urlData.publicUrl
     }
 
     /* Upsert profile */
