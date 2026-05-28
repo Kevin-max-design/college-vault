@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -63,6 +63,11 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatar_url)
+  const [hoverAvatar, setHoverAvatar] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const totalTrustPoints = gameSessions.reduce((acc, curr) => acc + curr.score, 0)
   const trustLevel = totalTrustPoints > 500 ? 'Gold' : totalTrustPoints > 100 ? 'Silver' : 'Bronze'
 
@@ -80,6 +85,32 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
     setEditSaving(true)
     setEditError('')
     try {
+      let finalAvatarUrl = profile.avatar_url
+
+      // If a new avatar file was chosen, upload it to Supabase first
+      if (avatarFile) {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          throw new Error('User not found. Please log in again.')
+        }
+
+        const ext = avatarFile.name.split('.').pop()
+        const path = `avatars/${user.id}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, avatarFile, { upsert: true })
+
+        if (uploadError) {
+          console.warn(`Avatar upload failed: ${uploadError.message}.`)
+          throw new Error(`Profile pic upload failed: ${uploadError.message}`)
+        } else {
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+          finalAvatarUrl = urlData.publicUrl
+        }
+      }
+
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -87,6 +118,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
           full_name: editName.trim(),
           department: editDept,
           year_of_study: editYear,
+          avatar_url: finalAvatarUrl,
         }),
       })
       if (res.ok) {
@@ -96,8 +128,8 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         const data = await res.json()
         setEditError(data.error || 'Failed to update profile.')
       }
-    } catch {
-      setEditError('Network error.')
+    } catch (err: any) {
+      setEditError(err.message || 'Network error.')
     } finally {
       setEditSaving(false)
     }
@@ -260,6 +292,92 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
+              
+              {/* Avatar Edit Section */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                <div style={{ position: 'relative', width: 90, height: 90 }}>
+                  
+                  {/* Spinning dashed amber ring */}
+                  <svg
+                    className="spin-slow"
+                    viewBox="0 0 106 106"
+                    style={{ position: 'absolute', inset: -8, width: 106, height: 106, color: '#fea619', zIndex: 0 }}
+                  >
+                    <circle cx="53" cy="53" r="48" fill="none" stroke="currentColor" strokeWidth={2.5} strokeDasharray="10 8" strokeLinecap="round" />
+                  </svg>
+                  <style>{`
+                    .spin-slow {
+                      animation: spin-anim 20s linear infinite;
+                    }
+                    @keyframes spin-anim {
+                      from { transform: rotate(0deg); }
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+
+                  {/* Avatar Frame */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onMouseEnter={() => setHoverAvatar(true)}
+                    onMouseLeave={() => setHoverAvatar(false)}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      borderRadius: '50%',
+                      border: '2px solid #00595c',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      zIndex: 1,
+                      boxShadow: '3px 3px 0 0 #00595c',
+                      cursor: 'pointer',
+                      background: '#eae8e3',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Avatar Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6e7979' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 28 }}>person</span>
+                      </div>
+                    )}
+
+                    {/* Camera Hover Overlay */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(0,89,92,0.85)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: hoverAvatar ? 1 : 0,
+                        transition: 'opacity 0.2s',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ color: '#ffffff', fontSize: 18 }}>photo_camera</span>
+                      <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.52rem', fontWeight: 800, color: '#ffffff', marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Change</span>
+                    </div>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setAvatarFile(file)
+                      setAvatarPreview(URL.createObjectURL(file))
+                    }}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Full Name</label>
                 <input type="text" className="cv-input" value={editName} onChange={e => setEditName(e.target.value)} required />

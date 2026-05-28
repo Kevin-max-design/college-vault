@@ -51,8 +51,16 @@ export default async function ProfilePage() {
     .eq('player_id', auth.user.id)
     .order('completed_at', { ascending: false })
 
+  const initials = profile?.full_name 
+    ? profile.full_name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
+    : 'CV'
+
   return (
-    <AppShell pageTitle="PROFILE">
+    <AppShell 
+      pageTitle="PROFILE"
+      userAvatarUrl={profile?.avatar_url}
+      userInitials={initials}
+    >
       <ProfileClient 
         profile={profile}
         listings={listings ?? []}

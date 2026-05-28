@@ -1,21 +1,51 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import AppShell from '@/app/components/AppShell'
+import { createClient } from '@/utils/supabase/client'
 
 export default function HomePage() {
+  const [profile, setProfile] = useState<any>(null)
+
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, department, year_of_study')
+            .eq('id', user.id)
+            .single()
+          if (data) {
+            setProfile(data)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching profile on homepage:', err)
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  const firstName = profile?.full_name ? profile.full_name.trim().split(' ')[0] : 'Alex'
+  const initials = profile?.full_name
+    ? profile.full_name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
+    : 'CV'
+
   return (
-    <AppShell pageTitle="Campus Vault">
+    <AppShell pageTitle="Campus Vault" userAvatarUrl={profile?.avatar_url} userInitials={initials}>
       <main className="px-4 md:px-gutter max-w-5xl mx-auto flex flex-col gap-8 py-5">
 
         {/* ── Greeting ────────────────────────────────────────── */}
         <section className="flex flex-col gap-1">
           <h2 className="font-newsreader font-black text-[2.4rem] leading-none text-primary tracking-tight">
-            Hey Alex!
+            Hey {firstName}!
           </h2>
           <p className="font-jakarta text-sm text-outline flex items-center gap-2">
             <span className="material-symbols-outlined text-base">school</span>
-            State University
+            {profile?.department ? `${profile.department} (Yr ${profile.year_of_study})` : 'State University'}
           </p>
         </section>
 

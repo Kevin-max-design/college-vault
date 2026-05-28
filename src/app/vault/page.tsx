@@ -32,8 +32,22 @@ export default async function VaultPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, avatar_url')
+    .eq('id', auth.user.id)
+    .single()
+
+  const avatarUrl = profile?.avatar_url ?? null
+  const fullName  = profile?.full_name ?? ''
+  const initials  = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
+
   return (
-    <AppShell pageTitle="VAULT">
+    <AppShell 
+      pageTitle="VAULT"
+      userAvatarUrl={avatarUrl}
+      userInitials={initials}
+    >
       <VaultClient
         currentUser={{ id: auth.user.id, email: auth.user.email ?? '' }}
         initialListings={initialListings ?? []}
