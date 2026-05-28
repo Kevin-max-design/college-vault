@@ -47,6 +47,8 @@ Object.entries(NESTED_SEED).forEach(([deptCode, years]) => {
   })
 })
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function PostDetailPage({ params }: Props) {
   const { id, postId } = await params
   const cookieStore = await cookies()
@@ -62,16 +64,28 @@ export default async function PostDetailPage({ params }: Props) {
     .single()
 
   const avatarUrl = profile?.avatar_url ?? null
-  const fullName  = profile?.full_name ?? ''
-  const initials  = fullName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'CV'
+  const fullName  = profile?.full_name?.trim() || ''
+  const initials  = fullName
+    ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
+    : 'U'
   const userRole  = (profile?.role ?? 'student') as string
 
-  // Try fetching from DB first
-  const { data: dbClassroom } = await supabase
-    .from('classrooms')
-    .select('id, name, subject_type, type, department, year, description, entry_code')
-    .eq('id', id)
-    .single()
+  // Try fetching from DB first if ID is in valid UUID format
+  const isUuid = UUID_REGEX.test(id)
+  let dbClassroom = null
+
+  if (isUuid) {
+    try {
+      const { data } = await supabase
+        .from('classrooms')
+        .select('id, name, subject_type, type, department, year, description, entry_code')
+        .eq('id', id)
+        .single()
+      dbClassroom = data
+    } catch (err) {
+      console.error('[PostDetail] Error loading DB classroom:', err)
+    }
+  }
 
   // Fall back to seed data if not in DB
   const classroom = dbClassroom ?? SEED_CLASSROOMS[id] ?? null
