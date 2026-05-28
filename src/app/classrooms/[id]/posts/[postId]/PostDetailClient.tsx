@@ -675,7 +675,9 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   // Extract the target sub-tree
   const targetPostNode = useMemo(() => {
     const map = new Map<string, Post>()
-    posts.forEach(p => map.set(p.id, { ...p, replies: [] }))
+    if (!Array.isArray(posts)) return null
+    const cleanPosts = posts.filter(p => p && p.id)
+    cleanPosts.forEach(p => map.set(p.id, { ...p, replies: [] }))
     map.forEach(p => {
       if (p.parent_id && map.has(p.parent_id)) {
         map.get(p.parent_id)!.replies!.push(p)

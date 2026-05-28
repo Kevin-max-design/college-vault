@@ -57,11 +57,20 @@ const TYPE_META: Record<string, { label: string; color: string; icon: string }> 
   thread:       { label: 'Thread',       color: '#3e4949', icon: 'forum' },
 }
 
+
+
 /* ── Build tree from flat list ──────────────────────────────────────── */
 function buildTree(posts: Post[]): Post[] {
   const map = new Map<string, Post>()
   const roots: Post[] = []
-  posts.forEach(p => map.set(p.id, { ...p, replies: [] }))
+  if (!Array.isArray(posts)) return []
+  
+  posts.forEach(p => {
+    if (p && p.id) {
+      map.set(p.id, { ...p, replies: [] })
+    }
+  })
+  
   map.forEach(p => {
     if (p.parent_id && map.has(p.parent_id)) {
       map.get(p.parent_id)!.replies!.push(p)
@@ -652,13 +661,16 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   // ── Memoized: build tree + filter only when posts/filter change ──
-  const openDoubtCount = useMemo(
-    () => posts.filter(p => p.type === 'doubt' && !p.resolved && !p.parent_id).length,
-    [posts]
-  )
+  const openDoubtCount = useMemo(() => {
+    if (!Array.isArray(posts)) return 0
+    return posts.filter(p => p && p.type === 'doubt' && !p.resolved && !p.parent_id).length
+  }, [posts])
+
   const filtered = useMemo(() => {
-    const tree = buildTree(posts)
-    return filter === 'all' ? tree : tree.filter(p => p.type === filter)
+    if (!Array.isArray(posts)) return []
+    const cleanPosts = posts.filter(p => p && p.id)
+    const tree = buildTree(cleanPosts)
+    return filter === 'all' ? tree : tree.filter(p => p && p.type === filter)
   }, [posts, filter])
 
   return (
