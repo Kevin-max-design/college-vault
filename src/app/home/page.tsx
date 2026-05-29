@@ -79,7 +79,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="relative z-10">
-            <button className="bg-surface text-primary border-2 border-primary px-6 py-2 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
+            <button className="bg-surface text-primary border-2 border-primary px-6 py-2 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn">
               View Listings
             </button>
           </div>
@@ -101,7 +101,7 @@ export default async function HomePage() {
 
           <div className="grid grid-cols-2 gap-4">
             {/* Card 1 */}
-            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] transition-all cursor-pointer group">
+            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card cursor-pointer group">
               <div className="h-32 bg-surface-variant border-b-2 border-primary relative overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -135,7 +135,7 @@ export default async function HomePage() {
             </article>
 
             {/* Card 2 */}
-            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] transition-all cursor-pointer group">
+            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card cursor-pointer group">
               <div className="h-32 bg-surface-variant border-b-2 border-primary relative overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

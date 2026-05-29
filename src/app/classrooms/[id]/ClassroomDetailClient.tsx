@@ -573,6 +573,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState<'all' | 'doubt' | 'material' | 'thread'>('all')
   const [seatCode, setSeatCode] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   
   // Custom unique identifiers (Reddit style) per classroom entry
   const [currentUserId, setCurrentUserId] = useState<string>(userId || 'mock-user')
@@ -598,13 +599,8 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
     }
     if (!storedHandle) {
-      const adjectives = ['Curious', 'Studious', 'Analytical', 'Bright', 'Clever', 'Mindful', 'Academic', 'Creative']
-      const nouns = ['Scholar', 'Mind', 'Explorer', 'Thinker', 'Learner', 'Guru', 'Innovator']
-      const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
-      const noun = nouns[Math.floor(Math.random() * nouns.length)]
-      const randNum = Math.floor(100 + Math.random() * 900)
-      storedHandle = `u/${adj}_${noun}_${randNum}`
-      localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
+      storedHandle = 'u/Theory_Scholar_' + Math.random().toString(36).substring(2, 6)
+      localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
     }
     
     setCurrentUserId(storedId)
@@ -625,13 +621,64 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }
   }, [classroom.id, isSeedClassroom])
 
-  // Auto-enroll on first visit and get seat code
+  // Check if enrolled on first visit, do not auto-enroll to let user manually tap "Join Classroom"
   useEffect(() => {
-    fetch(`/api/classrooms/${classroom.id}/enroll`, { method: 'POST' })
+    if (isSeedClassroom) {
+      setSeatCode('CV-SEED')
+      return
+    }
+    fetch(`/api/classrooms/${classroom.id}/enroll`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.seat_code) setSeatCode(data.seat_code) })
+      .then(data => {
+        if (data && Array.isArray(data.members)) {
+          const myMember = data.members.find((m: any) => m.user?.id === userId)
+          if (myMember?.seat_code) {
+            setSeatCode(myMember.seat_code)
+          }
+        }
+      })
       .catch(() => {})
-  }, [classroom.id])
+  }, [classroom.id, userId, isSeedClassroom])
+
+  const handleJoinClassroom = useCallback(async () => {
+    if (isSeedClassroom) {
+      setSeatCode('CV-SEED')
+      setToast({ type: 'success', message: 'Joined seed classroom!' })
+      setTimeout(() => setToast(null), 3000)
+      return
+    }
+
+    const previousSeatCode = seatCode
+    const optSeatCode = `CV-${Math.floor(1000 + Math.random() * 9000)}`
+
+    // 1. Save previous state. (previousSeatCode)
+    // 2. Update UI instantly.
+    setSeatCode(optSeatCode)
+    setToast({ type: 'success', message: 'Successfully joined classroom! (Optimistic)' })
+    setTimeout(() => setToast(null), 3000)
+
+    try {
+      // 3. Send API/Supabase request.
+      const res = await fetch(`/api/classrooms/${classroom.id}/enroll`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        // 4. If success, keep UI.
+        if (data?.seat_code) {
+          setSeatCode(data.seat_code)
+        }
+      } else {
+        // 5. If failure, rollback previous state.
+        setSeatCode(previousSeatCode)
+        setToast({ type: 'error', message: data.error || 'Failed to join classroom.' })
+        setTimeout(() => setToast(null), 5000)
+      }
+    } catch (err: any) {
+      // 5. If failure, rollback previous state.
+      setSeatCode(previousSeatCode)
+      setToast({ type: 'error', message: err.message || 'Network error — failed to join classroom.' })
+      setTimeout(() => setToast(null), 5000)
+    }
+  }, [classroom.id, seatCode, isSeedClassroom])
 
   // ── Supabase Realtime: live new-post subscription (real classrooms only) ──
   useEffect(() => {
@@ -732,24 +779,55 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       })
       return
     }
-    const res = await fetch(`/api/posts/${postId}/react`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji: direction }),
+
+    // Stateful Optimistic UI Update
+    const previousPosts = posts
+    let clickedBefore = false
+    
+    const optimisticPosts = posts.map(p => {
+      if (p.id === postId) {
+        const reactions = p.reactions.filter(r => r.user_id !== userId)
+        clickedBefore = p.reactions.some(r => r.user_id === userId && r.emoji === direction)
+        if (!clickedBefore) {
+          reactions.push({ emoji: direction, user_id: userId })
+        }
+        return { ...p, reactions }
+      }
+      return p
     })
-    if (res.ok) {
-      const result = await res.json()
-      setPosts(prev => {
-        return prev.map(p => {
-          if (p.id === postId) {
-            const reactions = p.reactions.filter(r => r.user_id !== userId)
-            if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
-            return { ...p, reactions }
-          }
-          return p
-        })
+
+    setPosts(optimisticPosts)
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji: direction }),
       })
+      if (!res.ok) {
+        // Rollback state on failure
+        setPosts(previousPosts)
+        const errData = await res.json().catch(() => ({}))
+        alert(errData.error || 'Failed to register reaction.')
+      } else {
+        const result = await res.json()
+        setPosts(prev => {
+          return prev.map(p => {
+            if (p.id === postId) {
+              const reactions = p.reactions.filter(r => r.user_id !== userId)
+              if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
+              return { ...p, reactions }
+            }
+            return p
+          })
+        })
+      }
+    } catch (err: any) {
+      // Rollback state on network exception
+      setPosts(previousPosts)
+      alert(err.message || 'Network error — failed to register vote.')
     }
-  }, [classroom.id, isSeedClassroom, userId])
+  }, [classroom.id, isSeedClassroom, userId, posts])
 
   function handlePosted(newPost: Post) {
     let updated = posts
@@ -800,7 +878,6 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     if (!Array.isArray(posts)) return 0
     return posts.filter(p => p && p.type === 'doubt' && !p.resolved && !p.parent_id).length
   }, [posts])
-
   const filtered = useMemo(() => {
     if (!Array.isArray(posts)) return []
     const cleanPosts = posts.filter(p => p && p.id)
@@ -821,7 +898,27 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   return (
-    <div style={{ padding: '20px 18px 0' }}>
+    <div style={{ padding: '20px 18px 0', position: 'relative' }}>
+      {/* ── Premium Neobrutalist Toast Alert ────────────────── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 200,
+          background: toast.type === 'success' ? '#00595c' : '#ba1a1a',
+          color: '#fff',
+          border: '2px solid #002021',
+          padding: '12px 20px',
+          fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.9rem',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: '4px 4px 0 0 #002021',
+          animation: 'slideInRight 0.3s ease',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+            {toast.type === 'success' ? 'check_circle' : 'error'}
+          </span>
+          {toast.message}
+        </div>
+      )}
+
       {/* Back */}
       <Link href="/classrooms" style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none',
@@ -868,6 +965,26 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
                   👤 ID: {currentUserHandle}
                 </span>
               </div>
+              
+              {/* Manual Join Classroom Button (Optimistic UI) */}
+              {!seatCode && (
+                <button
+                  onClick={handleJoinClassroom}
+                  className="cv-transition-btn"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    background: '#81d4d8', border: '2px solid #00595c',
+                    color: '#004f52',
+                    padding: '3px 10px', boxShadow: '2px 2px 0 0 #00595c',
+                    fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person_add</span>
+                  Join Classroom
+                </button>
+              )}
+
               {seatCode && (
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -890,8 +1007,8 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           background: '#ffddb8', border: '2px solid #855300',
-          padding: '10px 14px', marginBottom: 20,
-          fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
+          padding: '10px 14px', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
+          marginBottom: 20,
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#855300', fontVariationSettings: '"FILL" 1' }}>info</span>
           <span>✨ <strong>Classroom Feed</strong> — click <strong>"View Discussion"</strong> on any doubt or thread to view collapsible Reddit nested comments and chat directly with your classmates.</span>
@@ -905,14 +1022,17 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
         </h2>
         <button
           onClick={() => setShowModal(true)}
+          disabled={!seatCode && !isSeedClassroom}
           style={{
             display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
-            background: '#fea619',
-            border: '2px solid #00595c', color: '#684000',
+            background: (!seatCode && !isSeedClassroom) ? '#dbdad5' : '#fea619',
+            border: '2px solid #00595c',
+            color: (!seatCode && !isSeedClassroom) ? '#8b949e' : '#684000',
             fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: 'pointer',
-            boxShadow: '3px 3px 0 0 #00595c',
+            cursor: (!seatCode && !isSeedClassroom) ? 'not-allowed' : 'pointer',
+            boxShadow: (!seatCode && !isSeedClassroom) ? 'none' : '3px 3px 0 0 #00595c',
+            opacity: (!seatCode && !isSeedClassroom) ? 0.65 : 1,
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>

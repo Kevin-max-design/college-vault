@@ -1,17 +1,18 @@
 "use client";
 import React, { useState } from "react";
 import { Badge } from "./components";
+import dynamic from "next/dynamic";
 
-import ArchSection from "./sections/ArchSection";
-import ModulesSection from "./sections/ModulesSection";
-import RolesSection from "./sections/RolesSection";
-import DataFlowSection from "./sections/DataFlowSection";
-import ERSection from "./sections/ERSection";
-import SchemaSection from "./sections/SchemaSection";
-import APISection from "./sections/APISection";
-import BackendSection from "./sections/BackendSection";
-import ScaleSection from "./sections/ScaleSection";
-import SecuritySection from "./sections/SecuritySection";
+const ArchSection = dynamic(() => import("./sections/ArchSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const ModulesSection = dynamic(() => import("./sections/ModulesSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const RolesSection = dynamic(() => import("./sections/RolesSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const DataFlowSection = dynamic(() => import("./sections/DataFlowSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const ERSection = dynamic(() => import("./sections/ERSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const SchemaSection = dynamic(() => import("./sections/SchemaSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const APISection = dynamic(() => import("./sections/APISection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const BackendSection = dynamic(() => import("./sections/BackendSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const ScaleSection = dynamic(() => import("./sections/ScaleSection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
+const SecuritySection = dynamic(() => import("./sections/SecuritySection"), { loading: () => <div style={{ color: "#8b949e", fontFamily: "'Fira Code', monospace", fontSize: "14px", padding: "40px", textAlign: "center" }}>Loading Section...</div> });
 
 const sections = [
   { id: "arch", label: "Architecture", icon: "⬡" },
@@ -110,7 +111,7 @@ export default function SystemDesignPage() {
                   fontWeight: active === s.id ? 700 : 400,
                   fontSize: "12px",
                   whiteSpace: "nowrap",
-                  transition: "all 0.15s",
+                  transition: "color 0.15s, border-bottom-color 0.15s",
                   letterSpacing: "0.5px",
                 }}
               >

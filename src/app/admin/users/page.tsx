@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 interface User { id: string; full_name: string; email: string; role: string; department: string; year_of_study: number; created_at: string }
 
@@ -10,6 +10,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterRole, setFilterRole] = useState('all')
   const [changingId, setChangingId] = useState<string | null>(null)
 
@@ -17,11 +18,27 @@ export default function AdminUsersPage() {
     fetch('/api/admin/users').then(r => r.json()).then(d => { setUsers(d.users ?? []); setLoading(false) })
   }, [])
 
-  const filtered = users.filter(u => {
-    if (filterRole !== 'all' && u.role !== filterRole) return false
-    if (search && !u.full_name?.toLowerCase().includes(search.toLowerCase()) && !u.email?.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  // Phase 8 Debouncing: Update debouncedSearch after 300ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const filtered = useMemo(() => {
+    return users.filter(u => {
+      if (filterRole !== 'all' && u.role !== filterRole) return false
+      if (
+        debouncedSearch &&
+        !u.full_name?.toLowerCase().includes(debouncedSearch.toLowerCase()) &&
+        !u.email?.toLowerCase().includes(debouncedSearch.toLowerCase())
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [users, filterRole, debouncedSearch])
 
   async function changeRole(userId: string, newRole: string) {
     setChangingId(userId)

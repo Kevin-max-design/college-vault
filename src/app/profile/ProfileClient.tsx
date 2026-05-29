@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -131,6 +131,14 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         }),
       })
       if (res.ok) {
+        // Cache profile data locally on successful save
+        const { ClientCache } = await import('@/utils/cache')
+        ClientCache.set('profile', {
+          full_name: editName.trim(),
+          department: editDept,
+          year_of_study: editYear,
+          avatar_url: finalAvatarUrl,
+        })
         setShowEdit(false)
         router.refresh()
       } else {
@@ -144,6 +152,15 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
       setEditSaving(false)
     }
   }
+
+  // Seed cache with latest server profile data on initial render
+  useEffect(() => {
+    const seedCache = async () => {
+      const { ClientCache } = await import('@/utils/cache')
+      ClientCache.set('profile', profile)
+    }
+    seedCache()
+  }, [profile])
 
   return (
     <div className="p-5" style={{ paddingBottom: '100px' }}>
@@ -406,7 +423,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    transition: 'all 0.15s'
+                    transition: 'background-color 0.15s, color 0.15s'
                   }}
                   onMouseEnter={e => {
                     e.currentTarget.style.background = '#00595c'

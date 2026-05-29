@@ -87,10 +87,22 @@ export function flattenPosts(posts: Post[]): Post[] {
   return result
 }
 
-function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom, currentUserHandle, currentUserId }: {
+function ReplyInput({ 
+  classroomId, 
+  parentId, 
+  onPosted, 
+  onCancel, 
+  isSeedClassroom, 
+  currentUserHandle, 
+  currentUserId,
+  posts,
+  setPosts
+}: {
   classroomId: string; parentId: string
   onPosted: (p: Post) => void; onCancel: () => void; isSeedClassroom?: boolean
   currentUserHandle: string; currentUserId: string
+  posts: Post[]
+  setPosts: React.Dispatch<React.SetStateAction<Post[]>>
 }) {
   const [text, setText] = useState('')
   const [pending, start] = useTransition()
@@ -158,16 +170,55 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom
         onCancel()
         return
       }
-      const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text.trim(), type: 'thread', parent_id: parentId, attachments: uploadedAttachments }),
-      })
-      if (res.ok) { 
-        onPosted(await res.json())
-        setText('')
-        setAttachedFiles([])
-        onCancel() 
+
+      // Phase 9 Stateful Optimistic UI Update
+      const originalText = text
+      const previousPosts = posts
+      const tempId = `temp-${Date.now()}`
+      const optReply: Post = {
+        id: tempId,
+        content: text.trim(),
+        type: 'thread',
+        resolved: false,
+        created_at: new Date().toISOString(),
+        parent_id: parentId,
+        author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: 'student' },
+        reactions: [],
+        attachments: attachedFiles.map(file => ({
+          name: file.name,
+          url: '#',
+          type: file.type || 'application/octet-stream'
+        }))
+      }
+
+      // Step 2: Update UI instantly
+      setPosts(prev => [optReply, ...prev])
+      setText('')
+      setAttachedFiles([])
+      onCancel()
+
+      try {
+        // Step 3: Send API request
+        const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: originalText.trim(), type: 'thread', parent_id: parentId, attachments: uploadedAttachments }),
+        })
+        if (res.ok) { 
+          const added = await res.json()
+          const realPost = { ...added, reactions: [], replies: [] }
+          // Step 4: If success, keep UI (swap temp reply with real reply)
+          setPosts(prev => prev.map(p => p.id === tempId ? realPost : p))
+        } else {
+          // Step 5 & 6: If failure, rollback and show error
+          setPosts(previousPosts)
+          const errData = await res.json().catch(() => ({}))
+          alert(errData.error || 'Failed to post reply.')
+        }
+      } catch (err: any) {
+        // Step 5 & 6: If failure, rollback and show error
+        setPosts(previousPosts)
+        alert(err.message || 'Network error — failed to post reply.')
       }
     })
   }
@@ -255,7 +306,9 @@ function ThreadNode({
   onResolve, 
   onVote, 
   onOpenChat,
-  isSeedClassroom 
+  isSeedClassroom,
+  posts,
+  setPosts
 }: {
   post: Post; depth: number; classroomId: string; userId: string; userRole: string
   currentUserHandle: string; currentUserId: string
@@ -264,6 +317,8 @@ function ThreadNode({
   onVote: (id: string, direction: 'up' | 'down') => void
   onOpenChat: (recipientId: string, handle: string) => void
   isSeedClassroom?: boolean
+  posts: Post[]
+  setPosts: React.Dispatch<React.SetStateAction<Post[]>>
 }) {
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
@@ -565,6 +620,8 @@ function ThreadNode({
               onPosted={newPost => { onNewReply(post.id, newPost); setShowReplyBox(false) }}
               onCancel={() => setShowReplyBox(false)}
               isSeedClassroom={isSeedClassroom}
+              posts={posts}
+              setPosts={setPosts}
             />
           )}
         </div>
@@ -585,6 +642,8 @@ function ThreadNode({
             onVote={onVote}
             onOpenChat={onOpenChat}
             isSeedClassroom={isSeedClassroom}
+            posts={posts}
+            setPosts={setPosts}
           />
         ))}
       </div>
@@ -758,24 +817,55 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       })
       return
     }
-    const res = await fetch(`/api/posts/${id}/react`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji: direction }),
+
+    // Stateful Optimistic UI Update
+    const previousPosts = posts
+    let clickedBefore = false
+
+    const optimisticPosts = posts.map(p => {
+      if (p.id === id) {
+        const reactions = p.reactions.filter(r => r.user_id !== userId)
+        clickedBefore = p.reactions.some(r => r.user_id === userId && r.emoji === direction)
+        if (!clickedBefore) {
+          reactions.push({ emoji: direction, user_id: userId })
+        }
+        return { ...p, reactions }
+      }
+      return p
     })
-    if (res.ok) {
-      const result = await res.json()
-      setPosts(prev => {
-        return prev.map(p => {
-          if (p.id === id) {
-            const reactions = p.reactions.filter(r => r.user_id !== userId)
-            if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
-            return { ...p, reactions }
-          }
-          return p
-        })
+
+    setPosts(optimisticPosts)
+
+    try {
+      const res = await fetch(`/api/posts/${id}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji: direction }),
       })
+      if (!res.ok) {
+        // Rollback state on failure
+        setPosts(previousPosts)
+        const errData = await res.json().catch(() => ({}))
+        alert(errData.error || 'Failed to update vote.')
+      } else {
+        const result = await res.json()
+        setPosts(prev => {
+          return prev.map(p => {
+            if (p.id === id) {
+              const reactions = p.reactions.filter(r => r.user_id !== userId)
+              if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
+              return { ...p, reactions }
+            }
+            return p
+          })
+        })
+      }
+    } catch (err: any) {
+      // Rollback state on network exception
+      setPosts(previousPosts)
+      alert(err.message || 'Network error — failed to register vote.')
     }
-  }, [classroom.id, isSeedClassroom, userId])
+  }, [classroom.id, isSeedClassroom, userId, posts])
 
   const handleOpenChat = useCallback((recipientId: string, handle: string) => {
     setActiveChatUser({ id: recipientId, handle })
@@ -908,18 +998,58 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
         setDirectCommentText('')
         setDirectAttachedFiles([])
       } else {
-        const res = await fetch(`/api/classrooms/${classroom.id}/posts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: directCommentText.trim(), type: 'thread', parent_id: postId, attachments: uploadedAttachments }),
-        })
-        if (res.ok) {
-          const added = await res.json()
-          newPost = { ...added, reactions: [], replies: [] }
-          setPosts(prev => [...prev, newPost])
+        const originalText = directCommentText
+        const previousPosts = posts
+        
+        let optPost: Post | null = null
+        if (directAttachedFiles.length === 0) {
+          // Instantly insert optimistic post if no attachments are pending upload
+          optPost = {
+            id: 'opt-' + Math.random().toString(36).substring(2, 11),
+            content: directCommentText.trim(),
+            type: 'thread',
+            resolved: false,
+            created_at: new Date().toISOString(),
+            parent_id: postId,
+            author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: userRole },
+            reactions: [],
+            attachments: []
+          }
+          setPosts(prev => [...prev, optPost!])
           setDirectCommentText('')
-          setDirectAttachedFiles([])
-        } else {
+        }
+
+        try {
+          const res = await fetch(`/api/classrooms/${classroom.id}/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: originalText.trim(), type: 'thread', parent_id: postId, attachments: uploadedAttachments }),
+          })
+          if (res.ok) {
+            const added = await res.json()
+            newPost = { ...added, reactions: [], replies: [] }
+            
+            if (optPost) {
+              // Replace optimistic post with the real response
+              setPosts(prev => prev.map(p => p.id === optPost!.id ? newPost : p))
+            } else {
+              setPosts(prev => [...prev, newPost])
+            }
+            setDirectCommentText('')
+            setDirectAttachedFiles([])
+          } else {
+            // Rollback on non-ok status
+            setPosts(previousPosts)
+            setDirectCommentText(originalText)
+            const errData = await res.json().catch(() => ({}))
+            alert(errData.error || 'Failed to post reply.')
+            return
+          }
+        } catch (err: any) {
+          // Rollback on network failure
+          setPosts(previousPosts)
+          setDirectCommentText(originalText)
+          alert(err.message || 'Network error — failed to post reply.')
           return
         }
       }
@@ -1256,6 +1386,8 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
               onVote={handleVote}
               onOpenChat={handleOpenChat}
               isSeedClassroom={isSeedClassroom}
+              posts={posts}
+              setPosts={setPosts}
             />
           ))}
         </div>

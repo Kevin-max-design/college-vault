@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
+import { ClientCache } from '@/utils/cache'
 
 /* ── Types ────────────────────────────────────────────────────────── */
 export type SubjectType = 'core' | 'elective'
@@ -89,7 +90,7 @@ function AnonymousDoubt() {
       />
       <button
         onClick={handleSend}
-        className="mt-3 bg-primary text-on-primary font-jakarta font-bold text-xs tracking-widest uppercase px-5 py-2.5 border-2 border-primary shadow-[4px_4px_0_0_#00595c] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_0_#00595c] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
+        className="mt-3 bg-primary text-on-primary font-jakarta font-bold text-xs tracking-widest uppercase px-5 py-2.5 border-2 border-primary shadow-[4px_4px_0_0_#00595c] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_0_#00595c] active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn"
       >
         {sent ? '✓ Cast!' : 'Cast Into Void'}
       </button>
@@ -110,11 +111,11 @@ function SectionLabel({ icon, label }: { icon: string; label: string }) {
 }
 
 /* ── Classroom Card ─────────────────────────────────────────────── */
-function ClassroomCard({ c, featured }: { c: Classroom; featured?: boolean }) {
+const ClassroomCard = React.memo(function ClassroomCard({ c, featured }: { c: Classroom; featured?: boolean }) {
   return (
     <Link href={`/classrooms/${c.id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
       <div
-        className={`bg-surface border-2 border-primary transition-all cursor-pointer group ${
+        className={`bg-surface border-2 border-primary cv-transition-card cursor-pointer group ${
           featured
             ? 'shadow-[6px_6px_0_0_#00595c] p-5 hover:shadow-[8px_8px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5'
             : 'shadow-[4px_4px_0_0_#00595c] p-4 hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5'
@@ -163,7 +164,7 @@ function ClassroomCard({ c, featured }: { c: Classroom; featured?: boolean }) {
       </div>
     </Link>
   )
-}
+})
 
 /* ── Project Hub Card ────────────────────────────────────────────── */
 interface HubProject {
@@ -175,10 +176,10 @@ interface HubProject {
   banner?: string
 }
 
-function ProjectCard({ p }: { p: HubProject }) {
+const ProjectCard = React.memo(function ProjectCard({ p }: { p: HubProject }) {
   return (
     <Link href={`/classrooms/${p.id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
-      <div className="bg-surface border-2 border-primary shadow-[4px_4px_0_0_#00595c] overflow-hidden hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all">
+      <div className="bg-surface border-2 border-primary shadow-[4px_4px_0_0_#00595c] overflow-hidden hover:shadow-[6px_6px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 cv-transition-card">
         {p.banner && (
           <div className="h-20 bg-surface-container border-b-2 border-primary flex items-center justify-center">
             <span className="font-newsreader font-black text-2xl text-primary tracking-tight">
@@ -223,7 +224,7 @@ function ProjectCard({ p }: { p: HubProject }) {
               </span>
             </div>
 
-            <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+            <button className="bg-secondary-container text-on-secondary-container font-jakarta font-bold text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[2px_2px_0_0_#00595c] hover:shadow-[4px_4px_0_0_#00595c] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn">
               Join Project
             </button>
           </div>
@@ -231,7 +232,7 @@ function ProjectCard({ p }: { p: HubProject }) {
       </div>
     </Link>
   )
-}
+})
 
 const PROJECT_HUBS: HubProject[] = [
   {
@@ -260,11 +261,44 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
   const defaultYear = allowedYears.includes(userYear) ? userYear : allowedYears[0] ?? 1
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear)
   const [filter, setFilter] = useState<Filter>('all')
+  const [searchVal, setSearchVal] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const classrooms = classroomsByYear[selectedYear] ?? []
+  // Stateful Stale-While-Revalidate caching of classrooms
+  const [classroomsData, setClassroomsData] = useState<Record<number, Classroom[]>>(() => {
+    const cached = ClientCache.get<Record<number, Classroom[]>>('classrooms_by_year')
+    return cached || classroomsByYear
+  })
+
+  useEffect(() => {
+    // Seed and sync background cache
+    ClientCache.set('classrooms_by_year', classroomsByYear)
+    setClassroomsData(classroomsByYear)
+  }, [classroomsByYear])
+
+  // Phase 8 Debouncing: Update searchQuery after 300ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchVal)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchVal])
+
+  const classrooms = classroomsData[selectedYear] ?? []
   const filtered = useMemo(() => {
-    return filter === 'all' ? classrooms : classrooms.filter(c => c.subject_type === filter)
-  }, [classrooms, filter])
+    let result = classrooms
+    if (filter !== 'all') {
+      result = result.filter(c => c.subject_type === filter)
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(c =>
+        c.name?.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [classrooms, filter, searchQuery])
 
   return (
     <div className="px-4 py-5 max-w-xl mx-auto">
@@ -282,7 +316,7 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
             <button
               key={yr}
               onClick={() => { setSelectedYear(yr); setFilter('all') }}
-              className={`font-jakarta font-bold text-xs tracking-widest uppercase px-4 py-1.5 border-2 transition-all ${
+              className={`font-jakarta font-bold text-xs tracking-widest uppercase px-4 py-1.5 border-2 cv-transition-btn ${
                 isActive
                   ? 'bg-secondary-container text-on-secondary-container border-primary shadow-[2px_2px_0_0_#00595c]'
                   : 'bg-surface text-outline border-outline-variant hover:border-primary hover:text-primary'
@@ -297,6 +331,29 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
       {/* ── Anonymous Doubt ─────────────────────────────────── */}
       <AnonymousDoubt />
 
+      {/* ── Debounced Search Box ────────────────────────────── */}
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search classrooms by name or description..."
+          value={searchVal}
+          onChange={e => setSearchVal(e.target.value)}
+          className="cv-input"
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            background: '#fbf9f4',
+            border: '2px solid #00595c',
+            borderRadius: 2,
+            fontFamily: 'var(--font-jakarta)',
+            fontSize: '0.85rem',
+            color: '#1b1c19',
+            outline: 'none',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.04)',
+          }}
+        />
+      </div>
+
       {/* ── Filter Pills ────────────────────────────────────── */}
       <div className="flex gap-2 mb-1">
         {(['all', 'core', 'elective'] as Filter[]).map(f => {
@@ -306,7 +363,7 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`font-jakarta font-bold text-[0.6rem] tracking-widest uppercase px-3 py-1 border-2 transition-all ${
+              className={`font-jakarta font-bold text-[0.6rem] tracking-widest uppercase px-3 py-1 border-2 cv-transition-btn ${
                 isActive
                   ? 'bg-primary text-on-primary border-primary'
                   : 'bg-surface text-outline border-outline-variant hover:border-primary hover:text-primary'

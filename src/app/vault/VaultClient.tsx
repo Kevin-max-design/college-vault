@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import { ClientCache } from '@/utils/cache'
 
 const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget'), {
   ssr: false,
@@ -40,15 +41,197 @@ const CATEGORIES = ['all', 'books', 'electronics', 'lab', 'clothing', 'other'] a
 const TYPES = ['all', 'buy', 'rent'] as const
 
 export default function VaultClient({ currentUser, initialListings }: ProjectsClientProps) {
-  const [listings, setListings] = useState<Listing[]>(initialListings)
+  // Stateful SWR caching of market listings
+  const [listings, setListings] = useState<Listing[]>(() => {
+    const cached = ClientCache.get<Listing[]>('market_listings')
+    return cached || initialListings
+  })
+
+  useEffect(() => {
+    // Seed and sync background cache
+    ClientCache.set('market_listings', initialListings)
+    setListings(initialListings)
+  }, [initialListings])
+
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [activeType, setActiveType] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchVal, setSearchVal] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [successToast, setSuccessToast] = useState(false)
   const [activeChat, setActiveChat] = useState<{ recipientId: string; handle: string; listingId: string } | null>(null)
+  
+  // Phase 9 & Phase 11 persistent states
+  const [savedListings, setSavedListings] = useState<string[]>([])
+  const [requestedListings, setRequestedListings] = useState<string[]>([])
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Phase 11 LocalStorage and Supabase DB sync
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("savedListings")
+      if (saved) setSavedListings(JSON.parse(saved))
+      const requested = localStorage.getItem("requestedListings")
+      if (requested) setRequestedListings(JSON.parse(requested))
+    } catch (e) {
+      console.error(e)
+    }
+
+    // Persist real bookmarks in Supabase
+    fetch("/api/listings/saved")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.savedIds) {
+          setSavedListings(data.savedIds)
+          localStorage.setItem("savedListings", JSON.stringify(data.savedIds))
+        }
+      })
+      .catch(() => {})
+
+    // Persist real buy/rent requests in Supabase
+    fetch("/api/listings/requested")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.requestedIds) {
+          setRequestedListings(data.requestedIds)
+          localStorage.setItem("requestedListings", JSON.stringify(data.requestedIds))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Optimistic Bookmark Save Toggle
+  const handleToggleSave = useCallback(async (listing: Listing) => {
+    const isCurrentlySaved = savedListings.includes(listing.id)
+    const previousSavedListings = savedListings
+
+    // Step 1: Save previous state
+    // Step 2: Update UI instantly
+    const newSaved = isCurrentlySaved
+      ? savedListings.filter(id => id !== listing.id)
+      : [...savedListings, listing.id]
+    
+    setSavedListings(newSaved)
+    localStorage.setItem("savedListings", JSON.stringify(newSaved))
+    
+    setToast({
+      type: 'success',
+      message: isCurrentlySaved ? 'Listing removed from saved.' : 'Listing saved to bookmarks!'
+    })
+    const t = setTimeout(() => setToast(null), 3000)
+
+    try {
+      // Step 3: Send API request
+      const res = await fetch(`/api/listings/${listing.id}/save`, {
+        method: isCurrentlySaved ? 'DELETE' : 'POST'
+      })
+      if (!res.ok) {
+        // Step 5: Rollback on error
+        setSavedListings(previousSavedListings)
+        localStorage.setItem("savedListings", JSON.stringify(previousSavedListings))
+        const err = await res.json().catch(() => ({}))
+        setToast({ type: 'error', message: err.error || 'Failed to update saved status.' })
+        setTimeout(() => setToast(null), 4000)
+      }
+    } catch (err: any) {
+      // Step 5: Rollback on connection loss
+      setSavedListings(previousSavedListings)
+      localStorage.setItem("savedListings", JSON.stringify(previousSavedListings))
+      setToast({ type: 'error', message: err.message || 'Network error — failed to update saved status.' })
+      setTimeout(() => setToast(null), 4000)
+    }
+  }, [savedListings])
+
+  // Optimistic Rent/Buy request
+  const handleRentBuyRequest = useCallback(async (listing: Listing) => {
+    if (listing.seller_id === currentUser.id) {
+      setToast({ type: 'error', message: 'You cannot submit a request for your own listing!' })
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+
+    if (requestedListings.includes(listing.id)) {
+      setToast({ type: 'error', message: 'You have already requested this listing!' })
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+
+    const previousRequested = requestedListings
+
+    // Step 1: Save previous state
+    // Step 2: Update UI instantly
+    const newRequested = [...requestedListings, listing.id]
+    setRequestedListings(newRequested)
+    localStorage.setItem("requestedListings", JSON.stringify(newRequested))
+
+    setToast({ type: 'success', message: `Submitted request to ${listing.type} instantly!` })
+    setTimeout(() => setToast(null), 3000)
+
+    try {
+      // Step 3: Send API request
+      const res = await fetch(`/api/listings/${listing.id}/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_type: listing.type })
+      })
+      if (!res.ok) {
+        // Step 5: Rollback on failure
+        setRequestedListings(previousRequested)
+        localStorage.setItem("requestedListings", JSON.stringify(previousRequested))
+        const err = await res.json().catch(() => ({}))
+        setToast({ type: 'error', message: err.error || 'Failed to submit request.' })
+        setTimeout(() => setToast(null), 4000)
+      }
+    } catch (err: any) {
+      // Step 5: Rollback on connection loss
+      setRequestedListings(previousRequested)
+      localStorage.setItem("requestedListings", JSON.stringify(previousRequested))
+      setToast({ type: 'error', message: err.message || 'Network error — failed to submit request.' })
+      setTimeout(() => setToast(null), 4000)
+    }
+  }, [currentUser.id, requestedListings])
+
+  // Stable handler to message listing seller, preventing cards from re-rendering
+  const handleMessageSeller = useCallback(async (listing: Listing) => {
+    if (listing.seller_id === currentUser.id) {
+      alert('This is your own listing!')
+      return
+    }
+
+    // Stateful Optimistic UI Update
+    const previousChat = activeChat
+    const cleanName = (listing.seller?.full_name ?? 'Seller').replace(/\s+/g, '_')
+    const recipientHandle = `u/${cleanName}_${listing.seller_id.substring(0, 4)}`
+    
+    // Open chat widget instantly
+    setActiveChat({
+      recipientId: listing.seller_id,
+      handle: recipientHandle,
+      listingId: listing.id
+    })
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing_id: listing.id,
+          receiver_id: listing.seller_id,
+          body: `Hi! I'm interested in your listing: "${listing.title}"`,
+        }),
+      })
+      if (!res.ok) {
+        // Rollback state on API failure
+        setActiveChat(previousChat)
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Could not send message.')
+      }
+    } catch {
+      // Rollback state on network loss
+      setActiveChat(previousChat)
+      alert('Network error — please try again.')
+    }
+  }, [currentUser.id, activeChat])
 
   // Debounce search input to avoid heavy calculations on every keystroke
   useEffect(() => {
@@ -94,15 +277,18 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
 
       if (res.ok) {
         const newListing = await res.json()
-        setListings([newListing, ...listings])
+        const updated = [newListing, ...listings]
+        setListings(updated)
+        ClientCache.set('market_listings', updated)
         setIsModalOpen(false)
         setFormData({ title: '', description: '', price: '', type: 'buy', category: 'books' })
         // Show success toast
-        setSuccessToast(true)
-        setTimeout(() => setSuccessToast(false), 3000)
+        setToast({ type: 'success', message: 'Listing posted successfully!' })
+        setTimeout(() => setToast(null), 3000)
       } else {
         const error = await res.json()
-        alert(error.error || 'Failed to post listing')
+        setToast({ type: 'error', message: error.error || 'Failed to post listing' })
+        setTimeout(() => setToast(null), 4000)
       }
     } catch (err) {
       alert('An error occurred')
@@ -113,20 +299,29 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
 
   return (
     <div className="relative min-h-screen">
-      {/* ── Success Toast ─────────────────────────────────────────── */}
-      {successToast && (
+      {/* ── Premium Neobrutalist Toast Alert ────────────────── */}
+      {toast && (
         <div style={{
           position: 'fixed', top: 20, right: 20, zIndex: 200,
-          background: '#00595c', color: '#fff',
+          background: toast.type === 'success' ? '#00595c' : '#ba1a1a',
+          color: '#fff',
           border: '2px solid #002021',
           padding: '12px 20px',
           fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.9rem',
           display: 'flex', alignItems: 'center', gap: 8,
           boxShadow: '4px 4px 0 0 #002021',
-          animation: 'slideInRight 0.3s ease',
+          animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>check_circle</span>
-          Listing posted successfully!
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+            {toast.type === 'success' ? 'check_circle' : 'error'}
+          </span>
+          {toast.message}
+          <style>{`
+            @keyframes toastSlideIn {
+              from { transform: translateX(120%); }
+              to { transform: translateX(0); }
+            }
+          `}</style>
         </div>
       )}
 
@@ -234,158 +429,16 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
         ) : (
           <div className="grid gap-6">
             {filteredListings.map(listing => (
-              <div 
+              <ListingCard
                 key={listing.id}
-                style={{
-                  background: '#fbf9f4',
-                  border: '2px solid #00595c',
-                  borderRadius: 2,
-                  boxShadow: '4px 4px 0 0 #00595c',
-                  overflow: 'hidden',
-                  position: 'relative'
-                }}
-              >
-                {/* Status/Type Badge */}
-                <div style={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  background: listing.type === 'buy' ? '#81d4d8' : '#ffddb8',
-                  color: listing.type === 'buy' ? '#004f52' : '#855300',
-                  border: `2px solid ${listing.type === 'buy' ? '#00595c' : '#855300'}`,
-                  padding: '2px 8px',
-                  borderRadius: 2,
-                  fontFamily: 'var(--font-jakarta)',
-                  fontWeight: 800,
-                  fontSize: '0.65rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}>
-                  {listing.type === 'buy' ? 'For Sale' : 'For Rent'}
-                </div>
-
-                <div style={{ padding: '20px 20px 16px' }}>
-                  <div style={{
-                    color: '#6e7979',
-                    fontFamily: 'var(--font-jakarta)',
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    marginBottom: 8
-                  }}>
-                    {listing.category}
-                  </div>
-                  
-                  <h3 style={{
-                    fontFamily: 'var(--font-newsreader)',
-                    fontSize: '1.4rem',
-                    fontWeight: 800,
-                    lineHeight: 1.2,
-                    color: '#1b1c19',
-                    marginBottom: 8,
-                    paddingRight: 80 // leave space for badge
-                  }}>
-                    {listing.title}
-                  </h3>
-
-                  <div style={{
-                    fontFamily: 'var(--font-jakarta)',
-                    fontSize: '1.2rem',
-                    fontWeight: 800,
-                    color: '#00595c',
-                    marginBottom: 16
-                  }}>
-                    ${listing.price.toFixed(2)}
-                  </div>
-
-                  {listing.description && (
-                    <p style={{
-                      fontFamily: 'var(--font-jakarta)',
-                      fontSize: '0.9rem',
-                      lineHeight: 1.5,
-                      color: '#3e4949',
-                      marginBottom: 20
-                    }}>
-                      {listing.description}
-                    </p>
-                  )}
-
-                  {/* Seller Info */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    paddingTop: 16,
-                    borderTop: '2px dashed #bec9c9'
-                  }}>
-                    <div className="flex items-center gap-2">
-                      <div style={{
-                        width: 24, height: 24, borderRadius: '50%', background: '#dbdad5',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
-                      }}>
-                        {listing.seller?.avatar_url ? (
-                          <img src={listing.seller.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#6e7979' }}>person</span>
-                        )}
-                      </div>
-                      <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 600, color: '#3e4949' }}>
-                        {listing.seller?.full_name || 'Anonymous'}
-                      </span>
-                    </div>
-
-                    <button 
-                      onClick={async () => {
-                        if (listing.seller_id === currentUser.id) {
-                          alert('This is your own listing!')
-                          return
-                        }
-                        try {
-                          const res = await fetch('/api/messages', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              listing_id: listing.id,
-                              receiver_id: listing.seller_id,
-                              body: `Hi! I'm interested in your listing: "${listing.title}"`,
-                            }),
-                          })
-                          if (res.ok) {
-                            const cleanName = (listing.seller?.full_name ?? 'Seller').replace(/\s+/g, '_')
-                            const recipientHandle = `u/${cleanName}_${listing.seller_id.substring(0, 4)}`
-                            setActiveChat({
-                              recipientId: listing.seller_id,
-                              handle: recipientHandle,
-                              listingId: listing.id
-                            })
-                          } else {
-                            const err = await res.json()
-                            alert(err.error || 'Could not send message.')
-                          }
-                        } catch {
-                          alert('Network error — please try again.')
-                        }
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#0D7377',
-                        fontFamily: 'var(--font-jakarta)',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Message
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chat_bubble</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+                listing={listing}
+                currentUserId={currentUser.id}
+                onMessage={handleMessageSeller}
+                isSaved={savedListings.includes(listing.id)}
+                isRequested={requestedListings.includes(listing.id)}
+                onToggleSave={handleToggleSave}
+                onRequest={handleRentBuyRequest}
+              />
             ))}
           </div>
         )}
@@ -423,7 +476,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       {isModalOpen && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,32,33,0.6)', backdropFilter: 'blur(4px)',
+          background: 'rgba(0,32,33,0.75)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
         }}>
           <div style={{
@@ -511,3 +564,195 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
     </div>
   )
 }
+
+interface ListingCardProps {
+  listing: Listing
+  currentUserId: string
+  onMessage: (listing: Listing) => void
+  isSaved: boolean
+  isRequested: boolean
+  onToggleSave: (listing: Listing) => void
+  onRequest: (listing: Listing) => void
+}
+
+const ListingCard = React.memo(function ListingCard({ 
+  listing, 
+  currentUserId, 
+  onMessage,
+  isSaved,
+  isRequested,
+  onToggleSave,
+  onRequest
+}: ListingCardProps) {
+  return (
+    <div 
+      style={{
+        background: '#fbf9f4',
+        border: '2px solid #00595c',
+        borderRadius: 2,
+        boxShadow: '4px 4px 0 0 #00595c',
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      {/* Status/Type Badge */}
+      <div style={{
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        background: listing.type === 'buy' ? '#81d4d8' : '#ffddb8',
+        color: listing.type === 'buy' ? '#004f52' : '#855300',
+        border: `2px solid ${listing.type === 'buy' ? '#00595c' : '#855300'}`,
+        padding: '2px 8px',
+        borderRadius: 2,
+        fontFamily: 'var(--font-jakarta)',
+        fontWeight: 800,
+        fontSize: '0.65rem',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em'
+      }}>
+        {listing.type === 'buy' ? 'For Sale' : 'For Rent'}
+      </div>
+
+      <div style={{ padding: '20px 20px 16px' }}>
+        <div style={{
+          color: '#6e7979',
+          fontFamily: 'var(--font-jakarta)',
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          marginBottom: 8
+        }}>
+          {listing.category}
+        </div>
+        
+        <h3 style={{
+          fontFamily: 'var(--font-newsreader)',
+          fontSize: '1.4rem',
+          fontWeight: 800,
+          lineHeight: 1.2,
+          color: '#1b1c19',
+          marginBottom: 8,
+          paddingRight: 80 // leave space for badge
+        }}>
+          {listing.title}
+        </h3>
+
+        <div style={{
+          fontFamily: 'var(--font-jakarta)',
+          fontSize: '1.2rem',
+          fontWeight: 800,
+          color: '#00595c',
+          marginBottom: 16
+        }}>
+          ${listing.price.toFixed(2)}
+        </div>
+
+        {listing.description && (
+          <p style={{
+            fontFamily: 'var(--font-jakarta)',
+            fontSize: '0.9rem',
+            lineHeight: 1.5,
+            color: '#3e4949',
+            marginBottom: 20
+          }}>
+            {listing.description}
+          </p>
+        )}
+
+        {/* Seller Info */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          paddingTop: 16,
+          borderTop: '2px dashed #bec9c9'
+        }}>
+          <div className="flex items-center gap-2">
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%', background: '#dbdad5',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+            }}>
+              {listing.seller?.avatar_url ? (
+                <img src={listing.seller.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#6e7979' }}>person</span>
+              )}
+            </div>
+            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 600, color: '#3e4949' }}>
+              {listing.seller?.full_name || 'Anonymous'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {/* Save Listing Toggle Button */}
+            <button 
+              onClick={() => onToggleSave(listing)}
+              title={isSaved ? "Unsave Listing" : "Save Listing"}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: isSaved ? '#fea619' : '#bec9c9',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'color 0.2s',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 20, fontVariationSettings: isSaved ? "'FILL' 1" : "'FILL' 0" }}>
+                star
+              </span>
+            </button>
+
+            {/* Request Button */}
+            {listing.seller_id !== currentUserId && (
+              <button 
+                onClick={() => onRequest(listing)}
+                disabled={isRequested}
+                style={{
+                  background: isRequested ? '#dbdad5' : '#fea619',
+                  border: `2px solid ${isRequested ? '#bec9c9' : '#855300'}`,
+                  color: isRequested ? '#8b949e' : '#684000',
+                  fontFamily: 'var(--font-jakarta)',
+                  fontWeight: 700,
+                  fontSize: '0.68rem',
+                  textTransform: 'uppercase',
+                  padding: '4px 10px',
+                  boxShadow: isRequested ? 'none' : '2px 2px 0 0 #855300',
+                  cursor: isRequested ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                }}
+              >
+                {isRequested ? 'Requested ✓' : listing.type === 'buy' ? 'Request to Buy' : 'Request to Rent'}
+              </button>
+            )}
+
+            {/* Message Button */}
+            <button 
+              onClick={() => onMessage(listing)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#0D7377',
+                fontFamily: 'var(--font-jakarta)',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Message
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chat_bubble</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+})

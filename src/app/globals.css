@@ -155,7 +155,7 @@ body {
   text-transform: uppercase;
   box-shadow: 4px 4px 0 0 #00595c;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease;
   width: 100%;
 }
 .btn-amber:hover  { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 0 #00595c; }
@@ -177,7 +177,7 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   width: 100%;
 }
 .btn-teal:hover { background: #0d7377; }
@@ -206,6 +206,14 @@ body {
 }
 .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
 
+/* ── Highly Optimized Custom Transition Classes ─────────────────── */
+.cv-transition-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease;
+}
+.cv-transition-btn {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
 /* ── Role card ─────────────────────────────────────────────────── */
 .role-card {
   display: flex;
@@ -215,7 +223,7 @@ body {
   border: 2px solid var(--color-primary);
   padding: 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, outline-color 0.2s ease;
   position: relative;
   width: 100%;
 }

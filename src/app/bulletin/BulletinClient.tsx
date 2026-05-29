@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { ClientCache } from '@/utils/cache'
 
 interface Author { id: string; full_name: string; avatar_url: string | null; role: string }
 interface Notice {
@@ -221,20 +222,44 @@ function NoticePaper({ notice, userId, rotation, onPin, onDelete }: {
 
 /* ── Main ────────────────────────────────────────────────────────── */
 export default function BulletinClient({ initialNotices, userId, userRole, userDepartment }: Props) {
-  const [notices, setNotices]     = useState<Notice[]>(initialNotices)
+  // Stateful SWR caching of bulletin notices
+  const [notices, setNotices] = useState<Notice[]>(() => {
+    const cached = ClientCache.get<Notice[]>('bulletin_notices')
+    return cached || initialNotices
+  })
+
+  useEffect(() => {
+    // Seed and sync background cache
+    ClientCache.set('bulletin_notices', initialNotices)
+    setNotices(initialNotices)
+  }, [initialNotices])
+
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter]       = useState<'all' | 'global' | 'department' | 'personal'>('all')
   const router = useRouter()
 
   async function handlePin(id: string, pinned: boolean) {
     const res = await fetch(`/api/notices/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned }) })
-    if (res.ok) setNotices(prev => [...prev.map(n => n.id === id ? { ...n, pinned } : n)].sort((a, b) => Number(b.pinned) - Number(a.pinned)))
+    if (res.ok) {
+      const updated = [...notices.map(n => n.id === id ? { ...n, pinned } : n)].sort((a, b) => Number(b.pinned) - Number(a.pinned))
+      setNotices(updated)
+      ClientCache.set('bulletin_notices', updated)
+    }
   }
   async function handleDelete(id: string) {
     const res = await fetch(`/api/notices/${id}`, { method: 'DELETE' })
-    if (res.ok) setNotices(prev => prev.filter(n => n.id !== id))
+    if (res.ok) {
+      const updated = notices.filter(n => n.id !== id)
+      setNotices(updated)
+      ClientCache.set('bulletin_notices', updated)
+    }
   }
-  function handlePosted(notice: Notice) { setNotices(prev => [notice, ...prev]); router.refresh() }
+  function handlePosted(notice: Notice) {
+    const updated = [notice, ...notices]
+    setNotices(updated)
+    ClientCache.set('bulletin_notices', updated)
+    router.refresh()
+  }
 
   const filtered = filter === 'all' ? notices : notices.filter(n => n.scope === filter)
 

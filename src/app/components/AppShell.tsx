@@ -528,7 +528,7 @@ export default function AppShell({
                 borderTop: isActive ? `2.5px solid ${C.olive}` : '2.5px solid transparent',
                 background: isActive ? C.activeTabBg : 'transparent',
                 gap: 2,
-                transition: 'all 0.15s',
+                transition: 'color 0.15s, border-top-color 0.15s, background-color 0.15s',
               }}
             >
               <span

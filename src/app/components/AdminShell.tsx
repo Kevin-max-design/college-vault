@@ -86,7 +86,7 @@ export default function AdminShell({ children, userRole, userName, department }:
                 padding: '10px 20px', cursor: 'pointer',
                 background: isActive ? 'rgba(254,166,25,0.2)' : 'transparent',
                 borderLeft: isActive ? '3px solid #fea619' : '3px solid transparent',
-                transition: 'all 0.15s',
+                transition: 'background-color 0.15s, border-color 0.15s',
               }}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
