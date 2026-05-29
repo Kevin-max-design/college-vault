@@ -5,17 +5,7 @@ import AppShell from '@/app/components/AppShell'
 import dynamic from 'next/dynamic'
 import { SEED_CLASSROOMS as NESTED_SEED, DEPT_LABELS } from '../../../data'
 
-const PostDetailClient = dynamic(() => import('./PostDetailClient'), {
-  loading: () => (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
-      <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
-        Loading Discussion...
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      </div>
-    </div>
-  )
-})
+import PostDetailClient from './PostDetailClient'
 
 interface Props {
   params: Promise<{ id: string; postId: string }>
@@ -91,9 +81,9 @@ export default async function PostDetailPage({ params }: Props) {
     : 'U'
   const userRole  = (profile?.role ?? 'student') as string
 
-  // Try fetching from DB first if ID is in valid UUID format
+  // ── Classroom resolution: UUID direct lookup OR slug→UUID via RPC ──
   const isUuid = UUID_REGEX.test(id)
-  let dbClassroom = null
+  let dbClassroom: any = null
 
   if (isUuid) {
     try {
@@ -106,9 +96,35 @@ export default async function PostDetailPage({ params }: Props) {
     } catch (err) {
       console.error('[PostDetail] Error loading DB classroom:', err)
     }
+  } else {
+    // Slug-based: reuse the same RPC that ClassroomDetailPage uses
+    const seedData = SEED_CLASSROOMS[id]
+    if (seedData) {
+      try {
+        const { data: resolved, error: rpcErr } = await supabase.rpc(
+          'find_or_create_seed_classroom',
+          {
+            p_slug:         id,
+            p_name:         seedData.name,
+            p_subject_type: seedData.subject_type,
+            p_type:         seedData.type ?? 'study',
+            p_department:   seedData.department,
+            p_year:         seedData.year,
+            p_description:  seedData.description || '',
+          }
+        )
+        if (!rpcErr && Array.isArray(resolved) && resolved.length > 0) {
+          dbClassroom = resolved[0]
+        } else if (rpcErr) {
+          console.error('[PostDetail] RPC error:', rpcErr.message)
+        }
+      } catch (err) {
+        console.error('[PostDetail] Slug resolution error:', err)
+      }
+    }
   }
 
-  // Fall back to seed data if not in DB
+  // Fall back to seed metadata only if DB is unreachable (degraded mode)
   const classroom = dbClassroom ?? SEED_CLASSROOMS[id] ?? null
 
   // If neither DB nor seed, redirect back
@@ -116,19 +132,24 @@ export default async function PostDetailPage({ params }: Props) {
 
   const isSeedClassroom = !dbClassroom && !!SEED_CLASSROOMS[id]
 
+  // Always query posts by real UUID
+  const classroomUUID: string | null = dbClassroom?.id ?? null
+
   let posts: any[] = []
 
-  if (!isSeedClassroom) {
-    const { data: rawPosts } = await supabase
+  if (classroomUUID) {
+    const { data: rawPosts, error: postsErr } = await supabase
       .from('posts')
       .select(`
         id, content, type, resolved, created_at, parent_id,
         author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role),
         reactions(emoji, user_id)
       `)
-      .eq('classroom_id', id)
+      .eq('classroom_id', classroomUUID)
       .order('created_at', { ascending: true })
       .limit(100)
+
+    if (postsErr) console.error('[PostDetail] posts query error:', postsErr.message)
 
     posts = (rawPosts ?? []).map((p: any) => ({
       id: p.id,
@@ -140,81 +161,9 @@ export default async function PostDetailPage({ params }: Props) {
       author: Array.isArray(p.author) ? p.author[0] : p.author,
       reactions: p.reactions ?? [],
     }))
-  } else {
-    if (id === 'proj-vault-redesign') {
-      posts = [
-        {
-          id: 'p-vr-1',
-          content: '🚀 PROJECT UPDATE: I have successfully enabled Dynamic imports & route-splitting across the CampusVault platform. The initial bundle size dropped significantly, achieving a 45% faster load time. Let us keep the app responsive!',
-          type: 'announcement',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-          parent_id: null,
-          author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }, { emoji: 'up', user_id: 'user-2' }],
-          replies: []
-        },
-        {
-          id: 'p-vr-2',
-          content: 'Is anyone else facing issues with Supabase OTP email limits during local testing? Every time I try registering more than 3 students, it throws a rate limit.',
-          type: 'doubt',
-          resolved: true,
-          created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
-          parent_id: null,
-          author: { id: 'dev-2', full_name: 'u/Frontend_Ninja', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-3' }],
-          replies: [
-            {
-              id: 'p-vr-2-r1',
-              content: 'Yes! We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs anymore. Make sure to turn off Confirm Email in your local Supabase dashboard settings!',
-              type: 'thread',
-              resolved: false,
-              created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-              parent_id: 'p-vr-2',
-              author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
-              reactions: [{ emoji: 'up', user_id: 'user-2' }],
-              replies: []
-            }
-          ]
-        },
-        {
-          id: 'p-vr-3',
-          content: 'Here is the Figma link for the new CampusVault color guidelines: Amber (#fea619), Teal (#00595c) and Earth-slate. Please follow this style guide for all custom CSS contributions.',
-          type: 'material',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-          parent_id: null,
-          author: { id: 'designer-1', full_name: 'u/UI_Wizard', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }],
-          replies: []
-        }
-      ]
-    } else if (id === 'proj-ml-fundamentals') {
-      posts = [
-        {
-          id: 'p-ml-1',
-          content: '📢 WEEKLY SEMINAR: We are starting our first hands-on session on convolutional neural networks (CNNs) this Saturday at 2 PM. We will build a handwritten digit classifier from scratch!',
-          type: 'announcement',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-          parent_id: null,
-          author: { id: 'ml-lead', full_name: 'u/ML_Guru_101', avatar_url: null, role: 'faculty' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }],
-          replies: []
-        },
-        {
-          id: 'p-ml-2',
-          content: 'Could someone explain why we prefer the ReLU activation function over Sigmoid or Tanh in deep hidden layers of a network? Does it actually prevent vanishing gradients?',
-          type: 'doubt',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-          parent_id: null,
-          author: { id: 'student-ml', full_name: 'u/Curious_Neural_Net', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-2' }],
-          replies: []
-        }
-      ]
-    }
+  } else if (isSeedClassroom) {
+    // Degraded mode only
+    console.warn('[PostDetail] DB unavailable — degraded mode for slug:', id)
   }
 
   return (

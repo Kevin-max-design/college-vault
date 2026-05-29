@@ -665,8 +665,6 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   
   const [activeChatUser, setActiveChatUser] = useState<{ id: string; handle: string } | null>(null)
 
-  const lsTimerRef = useRef<NodeJS.Timeout | null>(null)
-
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
 
@@ -698,28 +696,17 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
     }
     
+    // Clear any stale localStorage seed posts — Supabase is now the source of truth
+    localStorage.removeItem(`cv_seed_posts_${classroom.id}`)
+
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroom.id, classroom.department, userRole])
 
-  // Load posts from localStorage if it's a seed classroom
+  // ── Supabase Realtime: live reply subscription ─────────────────────────────
   useEffect(() => {
-    if (isSeedClassroom) {
-      const stored = localStorage.getItem(`cv_seed_posts_${classroom.id}`)
-      if (stored) {
-        try {
-          setPosts(flattenPosts(JSON.parse(stored)))
-        } catch (e) {
-          console.error(e)
-        }
-      }
-    }
-  }, [classroom.id, isSeedClassroom])
-
-  // ── M3: Supabase Realtime live update subscription for comments/replies ──
-  useEffect(() => {
-    if (isSeedClassroom) return
+    if (isSeedClassroom) return // degraded mode: no Realtime
 
     const supabase = createClient()
     const channel = supabase
@@ -728,21 +715,28 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
         async (payload) => {
-          const newPost = payload.new as { id: string; parent_id: string | null }
-          // Fetch full post with author + reactions
-          const { data } = await supabase
+          const raw = payload.new as any
+          // Fetch only the joined fields we need (author + reactions) — NOT the whole post
+          // This avoids a full round-trip and uses a targeted single-row query
+          const { data: joined } = await supabase
             .from('posts')
-            .select('id, content, type, resolved, created_at, parent_id, attachments, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
-            .eq('id', newPost.id)
+            .select('author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id), attachments')
+            .eq('id', raw.id)
             .single()
-          if (!data) return
-          const fullPost = {
-            ...data,
-            author: Array.isArray(data.author) ? data.author[0] : data.author,
-            reactions: data.reactions ?? [],
+
+          const fullPost: Post = {
+            id: raw.id,
+            content: raw.content,
+            type: raw.type,
+            resolved: raw.resolved,
+            created_at: raw.created_at,
+            parent_id: raw.parent_id ?? null,
+            attachments: joined?.attachments ?? [],
+            author: joined ? (Array.isArray(joined.author) ? joined.author[0] : joined.author) : null,
+            reactions: joined?.reactions ?? [],
             replies: []
-          } as Post
-          
+          }
+
           setPosts(prev => {
             if (prev.some(p => p.id === fullPost.id)) return prev // dedupe
             return [fullPost, ...prev]
@@ -751,43 +745,18 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       )
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [classroom.id, isSeedClassroom])
 
-  const saveLocalPosts = useCallback((updatedPosts: Post[]) => {
-    setPosts(updatedPosts)
-    if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-    lsTimerRef.current = setTimeout(() => {
-      localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
-    }, 300)
-  }, [classroom.id])
-
-  // Helper to add a reply to the state tree
-  const addReply = useCallback((parentId: string, newPost: Post) => {
-    setPosts(prev => {
-      const updated = [newPost, ...prev]
-      if (isSeedClassroom) {
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-      }
-      return updated
-    })
-  }, [classroom.id, isSeedClassroom])
+  /* Add a reply into the tree in-memory (used for simulated auto-replies) */
+  const addReply = useCallback((_parentId: string, newPost: Post) => {
+    setPosts(prev => [newPost, ...prev])
+  }, [])
 
   const handleResolve = useCallback(async (id: string) => {
     if (isSeedClassroom) {
-      setPosts(prev => {
-        const updated = prev.map(p => p.id === id ? { ...p, resolved: !p.resolved } : p)
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-        return updated
-      })
+      // Degraded mode: optimistic only
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, resolved: !p.resolved } : p))
       return
     }
     const res = await fetch(`/api/posts/${id}/resolve`, { method: 'PATCH' })
@@ -795,26 +764,18 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       const updated = await res.json()
       setPosts(prev => prev.map(p => p.id === id ? { ...p, resolved: updated.resolved } : p))
     }
-  }, [classroom.id, isSeedClassroom])
+  }, [isSeedClassroom])
 
   const handleVote = useCallback(async (id: string, direction: 'up' | 'down') => {
     if (isSeedClassroom) {
-      setPosts(prev => {
-        const updated = prev.map(p => {
-          if (p.id === id) {
-            const reactions = p.reactions.filter(r => r.user_id !== userId)
-            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-            if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
-            return { ...p, reactions }
-          }
-          return p
-        })
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-        return updated
-      })
+      // Degraded mode: optimistic vote only (no DB)
+      setPosts(prev => prev.map(p => {
+        if (p.id !== id) return p
+        const reactions = p.reactions.filter(r => r.user_id !== userId)
+        const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+        if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+        return { ...p, reactions }
+      }))
       return
     }
 
@@ -994,7 +955,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           }))
         }
         const updated = [...posts, newPost]
-        saveLocalPosts(updated)
+        setPosts(updated)
         setDirectCommentText('')
         setDirectAttachedFiles([])
       } else {
