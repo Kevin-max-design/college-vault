@@ -172,10 +172,14 @@ export default function DirectChatWidget({
 
     if (isRealUser) {
       try {
-        const res = await fetch(`/api/classrooms/${classroomId}/chat`, {
+        const res = await fetch(`/api/peer-messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ receiver_id: recipient.id, body: messageText }),
+          body: JSON.stringify({ 
+            classroom_id: classroomId,
+            receiver_id: recipient.id, 
+            body: messageText 
+          }),
         })
         if (!res.ok) {
           // Rollback on error

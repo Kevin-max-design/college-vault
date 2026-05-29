@@ -25,6 +25,7 @@ export type NotificationCategory =
   | 'classroom_reply'
   | 'material_upload'
   | 'doubt_resolved'
+  | 'classroom_message'
   | 'general';
 
 export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
@@ -154,11 +155,12 @@ export async function createNotification(params: CreateNotificationParams) {
     // 1. Insert into user_notifications with category & priority
     const insertPayload: Record<string, unknown> = {
       user_id: userId,
+      actor_id: actorId || null,
       type,
       title,
       body,
-      link,
-      read: false,
+      target_url: link,
+      read_at: null,
       category,
       priority,
     };

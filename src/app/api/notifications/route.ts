@@ -29,8 +29,8 @@ export async function GET(_req: NextRequest) {
     title: n.title,
     body: n.body,
     time: n.created_at,
-    read: n.read,
-    link: n.link,
+    read: n.read_at !== null,
+    link: n.target_url,
     category: n.category ?? 'general',
     priority: n.priority ?? 'normal',
     source: n.source ?? null,
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
         type,
         title,
         body,
-        link,
-        read: false
+        target_url: link,
+        read_at: null
       })
       .select('*')
       .single()
@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest) {
       // Mark specific notification as read
       const { data, error } = await supabase
         .from('user_notifications')
-        .update({ read: true })
+        .update({ read_at: new Date().toISOString() })
         .eq('id', id)
         .eq('user_id', userId)
         .select('*')
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest) {
       // Mark all user notifications as read
       const { data, error } = await supabase
         .from('user_notifications')
-        .update({ read: true })
+        .update({ read_at: new Date().toISOString() })
         .eq('user_id', userId)
         .select('*')
 
