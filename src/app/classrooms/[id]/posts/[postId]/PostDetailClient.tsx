@@ -24,6 +24,7 @@ export interface Post {
   author: Author | null
   reactions: Reaction[]
   replies?: Post[]
+  attachments?: { name: string; url: string; type: string }[]
 }
 
 interface Classroom {
@@ -277,9 +278,49 @@ function ThreadNode({
           </div>
 
           {/* Content */}
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', lineHeight: 1.6, color: '#1b1c19', marginBottom: 10 }}>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', lineHeight: 1.6, color: '#1b1c19', marginBottom: post.attachments && post.attachments.length > 0 ? 8 : 10 }}>
             {post.content}
           </p>
+
+          {/* Render attachments */}
+          {post.attachments && post.attachments.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -4, marginBottom: 10 }}>
+              {post.attachments.map((att, i) => {
+                const isPdf = att.name.toLowerCase().endsWith('.pdf')
+                const isPpt = att.name.toLowerCase().endsWith('.ppt') || att.name.toLowerCase().endsWith('.pptx')
+                const icon = isPdf ? 'picture_as_pdf' : isPpt ? 'present_to_all' : 'description'
+                const iconColor = isPdf ? '#ba1a1a' : isPpt ? '#fea619' : '#00595c'
+                return (
+                  <a 
+                    key={i}
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 8px', border: '1px solid #00595c',
+                      background: '#ffffff', color: '#1b1c19',
+                      fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                      fontWeight: 700, textDecoration: 'none',
+                      boxShadow: '1.5px 1.5px 0 0 #00595c',
+                      transition: 'transform 0.1s, box-shadow 0.1s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.transform = 'translateY(-1px)'
+                      e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.transform = 'none'
+                      e.currentTarget.style.boxShadow = '1.5px 1.5px 0 0 #00595c'
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 13, color: iconColor }}>{icon}</span>
+                    <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                  </a>
+                )
+              })}
+            </div>
+          )}
 
           {/* Footer */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
@@ -529,7 +570,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           // Fetch full post with author + reactions
           const { data } = await supabase
             .from('posts')
-            .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
+            .select('id, content, type, resolved, created_at, parent_id, attachments, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
             .eq('id', newPost.id)
             .single()
           if (!data) return
@@ -841,11 +882,51 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           lineHeight: 1.5,
           color: '#1b1c19',
           fontWeight: 600,
-          marginBottom: 16,
+          marginBottom: targetPostNode.attachments && targetPostNode.attachments.length > 0 ? 10 : 16,
           whiteSpace: 'pre-wrap',
         }}>
           {targetPostNode.content}
         </h1>
+
+        {/* Render attachments */}
+        {targetPostNode.attachments && targetPostNode.attachments.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: -6, marginBottom: 16 }}>
+            {targetPostNode.attachments.map((att, i) => {
+              const isPdf = att.name.toLowerCase().endsWith('.pdf')
+              const isPpt = att.name.toLowerCase().endsWith('.ppt') || att.name.toLowerCase().endsWith('.pptx')
+              const icon = isPdf ? 'picture_as_pdf' : isPpt ? 'present_to_all' : 'description'
+              const iconColor = isPdf ? '#ba1a1a' : isPpt ? '#fea619' : '#00595c'
+              return (
+                <a 
+                  key={i}
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '5px 10px', border: '1.5px solid #00595c',
+                    background: '#ffffff', color: '#1b1c19',
+                    fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
+                    fontWeight: 700, textDecoration: 'none',
+                    boxShadow: '2px 2px 0 0 #00595c',
+                    transition: 'transform 0.1s, box-shadow 0.1s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.boxShadow = '3px 3px 0 0 #00595c'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'none'
+                    e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: iconColor }}>{icon}</span>
+                  <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                </a>
+              )
+            })}
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1.5px solid #bec9c9', paddingTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -19,6 +19,7 @@ export interface Post {
   author: Author | null
   reactions: Reaction[]
   replies?: Post[]
+  attachments?: { name: string; url: string; type: string }[]
 }
 
 interface Classroom {
@@ -182,7 +183,7 @@ function PostCard({
         fontSize: '0.95rem', 
         lineHeight: 1.6, 
         color: '#1b1c19', 
-        marginBottom: 14,
+        marginBottom: post.attachments && post.attachments.length > 0 ? 10 : 14,
         display: '-webkit-box',
         WebkitLineClamp: 3,
         WebkitBoxOrient: 'vertical',
@@ -190,6 +191,47 @@ function PostCard({
       }}>
         {post.content}
       </p>
+
+      {/* Render attachments */}
+      {post.attachments && post.attachments.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: -6, marginBottom: 14 }}>
+          {post.attachments.map((att, i) => {
+            const isPdf = att.name.toLowerCase().endsWith('.pdf')
+            const isPpt = att.name.toLowerCase().endsWith('.ppt') || att.name.toLowerCase().endsWith('.pptx')
+            const icon = isPdf ? 'picture_as_pdf' : isPpt ? 'present_to_all' : 'description'
+            const iconColor = isPdf ? '#ba1a1a' : isPpt ? '#fea619' : '#00595c'
+            return (
+              <a 
+                key={i}
+                href={att.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()} // prevent card navigation trigger
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 10px', border: '1.5px solid #00595c',
+                  background: '#ffffff', color: '#1b1c19',
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
+                  fontWeight: 700, textDecoration: 'none',
+                  boxShadow: '2px 2px 0 0 #00595c',
+                  transition: 'transform 0.1s, box-shadow 0.1s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = '3px 3px 0 0 #00595c'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'none'
+                  e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: iconColor }}>{icon}</span>
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+              </a>
+            )
+          })}
+        </div>
+      )}
 
       {/* Footer controls */}
       <div 
@@ -311,6 +353,9 @@ function PostDoubtModal({
   const [type, setType] = useState<'doubt' | 'thread' | 'material' | 'announcement'>('doubt')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const canPostMaterial = ['faculty', 'hod', 'principal'].includes(userRole)
   const typeOptions = [
     { value: 'doubt', label: 'Doubt' },
@@ -318,11 +363,49 @@ function PostDoubtModal({
     ...(canPostMaterial ? [{ value: 'material', label: 'Material' }, { value: 'announcement', label: 'Announcement' }] : []),
   ]
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files) return
+    const arr = Array.from(files)
+    setAttachedFiles(prev => [...prev, ...arr])
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!content.trim()) { setError('Please enter content.'); return }
     setError('')
     start(async () => {
+      let uploadedAttachments: { name: string; url: string; type: string }[] = []
+
+      try {
+        if (attachedFiles.length > 0 && !isSeedClassroom) {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          
+          for (const file of attachedFiles) {
+            const filePath = `${classroomId}/${Date.now()}-${file.name}`
+            const { error: uploadError } = await supabase.storage
+              .from('attachments')
+              .upload(filePath, file, { cacheControl: '3600', upsert: true })
+            
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(filePath)
+              uploadedAttachments.push({
+                name: file.name,
+                url: urlData.publicUrl,
+                type: file.type || 'application/octet-stream'
+              })
+            } else {
+              console.error('File upload failed:', uploadError)
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+          }
+        }
+      } catch (err: any) {
+        setError(err.message || 'File upload failed.')
+        return
+      }
+
       if (isSeedClassroom) {
         const mockPost: Post = {
           id: Math.random().toString(36).substring(2, 11),
@@ -333,14 +416,20 @@ function PostDoubtModal({
           parent_id: null,
           author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: userRole },
           reactions: [],
+          attachments: attachedFiles.map(file => ({
+            name: file.name,
+            url: '#',
+            type: file.type || 'application/octet-stream'
+          }))
         }
         onPosted(mockPost)
         onClose()
         return
       }
+
       const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content.trim(), type }),
+        body: JSON.stringify({ content: content.trim(), type, attachments: uploadedAttachments }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Something went wrong.'); return }
@@ -393,6 +482,57 @@ function PostDoubtModal({
               boxShadow: '3px 3px 0 0 #00595c',
             }}
           />
+
+          {/* Hidden File Input */}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            multiple 
+            accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" 
+            style={{ display: 'none' }} 
+          />
+
+          {/* Neobrutalist Attachment Button */}
+          <button 
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              marginTop: 12, display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', border: '2px solid #00595c', background: '#e8f5f5',
+              color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
+              fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
+              boxShadow: '2px 2px 0 0 #00595c',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>attach_file</span>
+            Attach Docs / Slides
+          </button>
+
+          {/* Attached Files List */}
+          {attachedFiles.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '6px 10px', border: '1.5px solid #00595c', background: '#fff',
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
+                }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}>
+                    📎 {file.name}
+                  </span>
+                  <button 
+                    type="button" 
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                    style={{ background: 'none', border: 'none', color: '#ba1a1a', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {error && <p style={{ marginTop: 8, fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#ba1a1a' }}>{error}</p>}
           <button type="submit" disabled={pending} style={{
             marginTop: 14, width: '100%', padding: '14px',
@@ -490,7 +630,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           // Fetch full post with author + reactions
           const { data } = await supabase
             .from('posts')
-            .select('id, content, type, resolved, created_at, parent_id, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
+            .select('id, content, type, resolved, created_at, parent_id, attachments, author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role), reactions(emoji, user_id)')
             .eq('id', newPost.id)
             .single()
           if (!data) return
