@@ -80,24 +80,34 @@ export default function ProfileSetupPage() {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      router.push('/onboarding/verify')
+      setError('Please login again')
+      setLoading(false)
       return
     }
+
+    console.log("Current User ID:", user.id)
+    console.log("Bucket Name: avatars")
 
     let avatarUrl: string | null = null
 
     /* Upload avatar if provided */
     if (avatarFile) {
-      const ext = avatarFile.name.split('.').pop()
-      const path = `avatars/${user.id}.${ext}`
+      const filePath = `${user.id}/${Date.now()}-${avatarFile.name}`
+      console.log("File Path:", filePath)
+
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, avatarFile, { upsert: true })
+        .upload(filePath, avatarFile, {
+          cacheControl: '3600',
+          upsert: true,
+        })
 
       if (uploadError) {
+        console.log("Upload Error:", uploadError)
         console.warn(`Avatar upload failed: ${uploadError.message}. Proceeding with default avatar.`)
       } else {
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath)
+        console.log("Public Avatar URL:", urlData.publicUrl)
         avatarUrl = urlData.publicUrl
       }
     }
@@ -119,6 +129,7 @@ export default function ProfileSetupPage() {
     setLoading(false)
 
     if (profileError) {
+      console.log("Profile Update Error:", profileError)
       setError(profileError.message)
     } else {
       router.push('/classrooms')

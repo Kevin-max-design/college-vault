@@ -92,21 +92,30 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
         const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
         if (userError || !user) {
-          throw new Error('User not found. Please log in again.')
+          throw new Error('Please login again')
         }
 
-        const ext = avatarFile.name.split('.').pop()
-        const path = `avatars/${user.id}.${ext}`
+        console.log("Current User ID:", user.id)
+        console.log("Bucket Name: avatars")
+
+        const filePath = `${user.id}/${Date.now()}-${avatarFile.name}`
+        console.log("File Path:", filePath)
+
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(path, avatarFile, { upsert: true })
+          .upload(filePath, avatarFile, {
+            cacheControl: '3600',
+            upsert: true,
+          })
 
         if (uploadError) {
-          console.warn(`Avatar upload failed: ${uploadError.message}.`)
+          console.log("Upload Error:", uploadError)
           throw new Error(`Profile pic upload failed: ${uploadError.message}`)
         } else {
-          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath)
+          console.log("Public Avatar URL:", urlData.publicUrl)
           finalAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
         }
       }
@@ -126,6 +135,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         router.refresh()
       } else {
         const data = await res.json()
+        console.log("Profile Update Error:", data.error)
         setEditError(data.error || 'Failed to update profile.')
       }
     } catch (err: any) {
