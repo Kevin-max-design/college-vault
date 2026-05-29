@@ -91,6 +91,24 @@ function countReplies(post: Post): number {
   return count
 }
 
+/* Helper to flatten posts (recursively extracts nested replies from seed arrays) */
+export function flattenPosts(posts: Post[]): Post[] {
+  const result: Post[] = []
+  function recurse(list: Post[]) {
+    if (!Array.isArray(list)) return
+    list.forEach(p => {
+      if (!p) return
+      const { replies, ...rest } = p
+      result.push({ ...rest, replies: [] })
+      if (replies && replies.length > 0) {
+        recurse(replies)
+      }
+    })
+  }
+  recurse(posts)
+  return result
+}
+
 /* ── Clean Doubt Dashboard Card ─────────────────────────────────────── */
 function PostCard({ 
   post, 
@@ -551,7 +569,7 @@ function PostDoubtModal({
 
 /* ── Main Dashboard ─────────────────────────────────────────────────── */
 export default function ClassroomDetailClient({ classroom, initialPosts, doubtCount: initDC, userId, userRole }: Props) {
-  const [posts, setPosts] = useState<Post[]>(initialPosts)
+  const [posts, setPosts] = useState<Post[]>(() => flattenPosts(initialPosts))
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState<'all' | 'doubt' | 'material' | 'thread'>('all')
   const [seatCode, setSeatCode] = useState<string | null>(null)
@@ -599,7 +617,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       const stored = localStorage.getItem(`cv_seed_posts_${classroom.id}`)
       if (stored) {
         try {
-          setPosts(JSON.parse(stored))
+          setPosts(flattenPosts(JSON.parse(stored)))
         } catch (e) {
           console.error(e)
         }
@@ -663,14 +681,8 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
 
   /* Add a reply into the tree in-memory (needed for classmate's auto reply trigger) */
   const addReply = useCallback((parentId: string, newPost: Post) => {
-    function insertInto(list: Post[]): Post[] {
-      return list.map(p => {
-        if (p.id === parentId) return { ...p, replies: [{ ...newPost, replies: [] }, ...(p.replies ?? [])] }
-        return { ...p, replies: insertInto(p.replies ?? []) }
-      })
-    }
     setPosts(prev => {
-      const updated = insertInto(prev)
+      const updated = [newPost, ...prev]
       if (isSeedClassroom) {
         if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
         lsTimerRef.current = setTimeout(() => {
@@ -701,21 +713,17 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }, [classroom.id, isSeedClassroom])
 
   const handleVote = useCallback(async (postId: string, direction: 'up' | 'down') => {
-    function updateVote(list: Post[]): Post[] {
-      return list.map(p => {
-        if (p.id === postId) {
-          const reactions = p.reactions.filter(r => r.user_id !== userId)
-          const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-          if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
-          return { ...p, reactions }
-        }
-        if (p.replies) return { ...p, replies: updateVote(p.replies) }
-        return p
-      })
-    }
     if (isSeedClassroom) {
       setPosts(prev => {
-        const updated = updateVote(prev)
+        const updated = prev.map(p => {
+          if (p.id === postId) {
+            const reactions = p.reactions.filter(r => r.user_id !== userId)
+            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+            if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+            return { ...p, reactions }
+          }
+          return p
+        })
         if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
         lsTimerRef.current = setTimeout(() => {
           localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
@@ -737,7 +745,6 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
             if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
             return { ...p, reactions }
           }
-          if (p.replies) return { ...p, replies: updateVote(p.replies) }
           return p
         })
       })

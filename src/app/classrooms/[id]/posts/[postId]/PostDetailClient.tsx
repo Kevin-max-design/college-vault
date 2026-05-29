@@ -69,10 +69,24 @@ const TYPE_META: Record<string, { label: string; color: string; icon: string }> 
   announcement: { label: 'Announcement', color: '#855300', icon: 'campaign' },
   thread:       { label: 'Thread',       color: '#3e4949', icon: 'forum' },
 }
+/* Helper to flatten posts (recursively extracts nested replies from seed arrays) */
+export function flattenPosts(posts: Post[]): Post[] {
+  const result: Post[] = []
+  function recurse(list: Post[]) {
+    if (!Array.isArray(list)) return
+    list.forEach(p => {
+      if (!p) return
+      const { replies, ...rest } = p
+      result.push({ ...rest, replies: [] })
+      if (replies && replies.length > 0) {
+        recurse(replies)
+      }
+    })
+  }
+  recurse(posts)
+  return result
+}
 
-
-
-/* ── Inline Reply Input ─────────────────────────────────────────────── */
 function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom, currentUserHandle, currentUserId }: {
   classroomId: string; parentId: string
   onPosted: (p: Post) => void; onCancel: () => void; isSeedClassroom?: boolean
@@ -80,11 +94,48 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom
 }) {
   const [text, setText] = useState('')
   const [pending, start] = useTransition()
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files) return
+    setAttachedFiles(prev => [...prev, ...Array.from(files)])
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim()) return
     start(async () => {
+      let uploadedAttachments: { name: string; url: string; type: string }[] = []
+      try {
+        if (attachedFiles.length > 0 && !isSeedClassroom) {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          for (const file of attachedFiles) {
+            const filePath = `${classroomId}/${Date.now()}-${file.name}`
+            const { error: uploadError } = await supabase.storage
+              .from('attachments')
+              .upload(filePath, file, { cacheControl: '3600', upsert: true })
+            
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(filePath)
+              uploadedAttachments.push({
+                name: file.name,
+                url: urlData.publicUrl,
+                type: file.type || 'application/octet-stream'
+              })
+            } else {
+              console.error('File upload failed:', uploadError)
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+          }
+        }
+      } catch (err: any) {
+        alert(err.message || 'File upload failed.')
+        return
+      }
+
       if (isSeedClassroom) {
         const mockReply: Post = {
           id: Math.random().toString(36).substring(2, 11),
@@ -95,49 +146,99 @@ function ReplyInput({ classroomId, parentId, onPosted, onCancel, isSeedClassroom
           parent_id: parentId,
           author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: 'student' },
           reactions: [],
+          attachments: attachedFiles.map(file => ({
+            name: file.name,
+            url: '#',
+            type: file.type || 'application/octet-stream'
+          }))
         }
         onPosted(mockReply)
         setText('')
+        setAttachedFiles([])
         onCancel()
         return
       }
       const res = await fetch(`/api/classrooms/${classroomId}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text.trim(), type: 'thread', parent_id: parentId }),
+        body: JSON.stringify({ content: text.trim(), type: 'thread', parent_id: parentId, attachments: uploadedAttachments }),
       })
-      if (res.ok) { onPosted(await res.json()); setText(''); onCancel() }
+      if (res.ok) { 
+        onPosted(await res.json())
+        setText('')
+        setAttachedFiles([])
+        onCancel() 
+      }
     })
   }
 
   return (
-    <form onSubmit={submit} style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-      <textarea
-        value={text} onChange={e => setText(e.target.value)} rows={2} autoFocus
-        placeholder="Write a reply..."
-        style={{
-          flex: 1, padding: '8px 12px', border: '2px solid #00595c',
-          fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', resize: 'none',
-          background: '#fbf9f4', outline: 'none', color: '#1b1c19',
-        }}
-      />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <button type="submit" disabled={pending || !text.trim()} style={{
-          padding: '6px 14px', background: '#00595c', border: '2px solid #00595c',
-          color: '#fff', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-          fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-        }}>
-          {pending ? '…' : 'Reply'}
-        </button>
-        <button type="button" onClick={onCancel} style={{
-          padding: '6px 14px', background: 'transparent', border: '2px solid #bec9c9',
-          color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-          fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-        }}>
-          Cancel
-        </button>
-      </div>
-    </form>
+    <div style={{ marginTop: 10 }}>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <textarea
+          value={text} onChange={e => setText(e.target.value)} rows={2} autoFocus
+          placeholder="Write a reply..."
+          style={{
+            flex: 1, padding: '8px 12px', border: '2px solid #00595c',
+            fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', resize: 'none',
+            background: '#fbf9f4', outline: 'none', color: '#1b1c19',
+          }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button type="submit" disabled={pending || !text.trim()} style={{
+            padding: '6px 14px', background: '#00595c', border: '2px solid #00595c',
+            color: '#fff', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+          }}>
+            {pending ? '…' : 'Reply'}
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} style={{
+            padding: '6px 14px', background: 'transparent', border: '2px solid #00595c',
+            color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center'
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>attach_file</span>
+            Files
+          </button>
+          <input
+            type="file"
+            multiple
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <button type="button" onClick={onCancel} style={{
+            padding: '6px 14px', background: 'transparent', border: '2px solid #bec9c9',
+            color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+          }}>
+            Cancel
+          </button>
+        </div>
+      </form>
+      {attachedFiles.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {attachedFiles.map((f, idx) => (
+            <div key={idx} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: '#e8f5f5', border: '1.5px solid #00595c',
+              padding: '2px 6px',
+              fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', color: '#00595c'
+            }}>
+              <span>{f.name}</span>
+              <span 
+                className="material-symbols-outlined" 
+                onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                style={{ fontSize: 12, cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                close
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -493,9 +594,11 @@ function ThreadNode({
 
 /* ── Main Detail Component ────────────────────────────────────────── */
 export default function PostDetailClient({ classroom, postId, initialPosts, userId, userRole }: Props) {
-  const [posts, setPosts] = useState<Post[]>(initialPosts)
+  const [posts, setPosts] = useState<Post[]>(() => flattenPosts(initialPosts))
   const [directCommentText, setDirectCommentText] = useState('')
   const [commentPending, startComment] = useTransition()
+  const [directAttachedFiles, setDirectAttachedFiles] = useState<File[]>([])
+  const directFileInputRef = useRef<HTMLInputElement>(null)
 
   const [currentUserId, setCurrentUserId] = useState<string>(userId || 'mock-user')
   const [currentUserHandle, setCurrentUserHandle] = useState<string>('u/Student_Scholar')
@@ -547,7 +650,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       const stored = localStorage.getItem(`cv_seed_posts_${classroom.id}`)
       if (stored) {
         try {
-          setPosts(JSON.parse(stored))
+          setPosts(flattenPosts(JSON.parse(stored)))
         } catch (e) {
           console.error(e)
         }
@@ -583,18 +686,6 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           
           setPosts(prev => {
             if (prev.some(p => p.id === fullPost.id)) return prev // dedupe
-            if (fullPost.parent_id) {
-              function insertInto(list: Post[]): Post[] {
-                return list.map(p => {
-                  if (p.id === fullPost.parent_id) {
-                    if (p.replies?.some(r => r.id === fullPost.id)) return p
-                    return { ...p, replies: [{ ...fullPost, replies: [] }, ...(p.replies ?? [])] }
-                  }
-                  return { ...p, replies: insertInto(p.replies ?? []) }
-                })
-              }
-              return insertInto(prev)
-            }
             return [fullPost, ...prev]
           })
         }
@@ -616,14 +707,8 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
 
   // Helper to add a reply to the state tree
   const addReply = useCallback((parentId: string, newPost: Post) => {
-    function insertInto(list: Post[]): Post[] {
-      return list.map(p => {
-        if (p.id === parentId) return { ...p, replies: [{ ...newPost, replies: [] }, ...(p.replies ?? [])] }
-        return { ...p, replies: insertInto(p.replies ?? []) }
-      })
-    }
     setPosts(prev => {
-      const updated = insertInto(prev)
+      const updated = [newPost, ...prev]
       if (isSeedClassroom) {
         if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
         lsTimerRef.current = setTimeout(() => {
@@ -654,21 +739,17 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   }, [classroom.id, isSeedClassroom])
 
   const handleVote = useCallback(async (id: string, direction: 'up' | 'down') => {
-    function updateVote(list: Post[]): Post[] {
-      return list.map(p => {
-        if (p.id === id) {
-          const reactions = p.reactions.filter(r => r.user_id !== userId)
-          const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-          if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
-          return { ...p, reactions }
-        }
-        if (p.replies) return { ...p, replies: updateVote(p.replies) }
-        return p
-      })
-    }
     if (isSeedClassroom) {
       setPosts(prev => {
-        const updated = updateVote(prev)
+        const updated = prev.map(p => {
+          if (p.id === id) {
+            const reactions = p.reactions.filter(r => r.user_id !== userId)
+            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+            if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+            return { ...p, reactions }
+          }
+          return p
+        })
         if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
         lsTimerRef.current = setTimeout(() => {
           localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
@@ -690,7 +771,6 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
             if (result.action !== 'removed') reactions.push({ emoji: direction, user_id: userId })
             return { ...p, reactions }
           }
-          if (p.replies) return { ...p, replies: updateVote(p.replies) }
           return p
         })
       })
@@ -777,6 +857,35 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     if (!directCommentText.trim()) return
 
     startComment(async () => {
+      let uploadedAttachments: { name: string; url: string; type: string }[] = []
+      try {
+        if (directAttachedFiles.length > 0 && !isSeedClassroom) {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          for (const file of directAttachedFiles) {
+            const filePath = `${classroom.id}/${Date.now()}-${file.name}`
+            const { error: uploadError } = await supabase.storage
+              .from('attachments')
+              .upload(filePath, file, { cacheControl: '3600', upsert: true })
+            
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('attachments').getPublicUrl(filePath)
+              uploadedAttachments.push({
+                name: file.name,
+                url: urlData.publicUrl,
+                type: file.type || 'application/octet-stream'
+              })
+            } else {
+              console.error('File upload failed:', uploadError)
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+          }
+        }
+      } catch (err: any) {
+        alert(err.message || 'File upload failed.')
+        return
+      }
+
       let newPost: Post
       if (isSeedClassroom) {
         newPost = {
@@ -788,21 +897,28 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           parent_id: postId,
           author: { id: currentUserId, full_name: currentUserHandle, avatar_url: null, role: 'student' },
           reactions: [],
+          attachments: directAttachedFiles.map(file => ({
+            name: file.name,
+            url: '#',
+            type: file.type || 'application/octet-stream'
+          }))
         }
         const updated = [...posts, newPost]
         saveLocalPosts(updated)
         setDirectCommentText('')
+        setDirectAttachedFiles([])
       } else {
         const res = await fetch(`/api/classrooms/${classroom.id}/posts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: directCommentText.trim(), type: 'thread', parent_id: postId }),
+          body: JSON.stringify({ content: directCommentText.trim(), type: 'thread', parent_id: postId, attachments: uploadedAttachments }),
         })
         if (res.ok) {
           const added = await res.json()
           newPost = { ...added, reactions: [], replies: [] }
           setPosts(prev => [...prev, newPost])
           setDirectCommentText('')
+          setDirectAttachedFiles([])
         } else {
           return
         }
@@ -1021,33 +1137,84 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       {/* Join the Discussion Box (Author replied restriction) */}
       <div style={{ marginBottom: 24 }}>
         {(!isMainAuthorMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
-          <form onSubmit={handlePostDirectComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <textarea
-              value={directCommentText}
-              onChange={e => setDirectCommentText(e.target.value)}
-              placeholder="What's your answer or thought? Help your classmate..."
-              rows={3}
-              style={{
-                flex: 1, padding: '12px 14px', border: '2.5px solid #00595c',
-                background: '#fbf9f4', fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem',
-                lineHeight: 1.5, color: '#1b1c19', resize: 'none', outline: 'none',
-                boxShadow: '3px 3px 0 0 #00595c',
-              }}
-            />
-            <button
-              type="submit"
-              disabled={commentPending || !directCommentText.trim()}
-              style={{
-                padding: '12px 18px', background: '#fea619', border: '2.5px solid #00595c',
-                color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
-                fontWeight: 700, textTransform: 'uppercase', cursor: commentPending ? 'not-allowed' : 'pointer',
-                boxShadow: '3px 3px 0 0 #00595c',
-                opacity: commentPending ? 0.7 : 1,
-              }}
-            >
-              {commentPending ? '…' : 'Comment'}
-            </button>
-          </form>
+          <div>
+            <form onSubmit={handlePostDirectComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <textarea
+                value={directCommentText}
+                onChange={e => setDirectCommentText(e.target.value)}
+                placeholder="What's your answer or thought? Help your classmate..."
+                rows={3}
+                style={{
+                  flex: 1, padding: '12px 14px', border: '2.5px solid #00595c',
+                  background: '#fbf9f4', fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem',
+                  lineHeight: 1.5, color: '#1b1c19', resize: 'none', outline: 'none',
+                  boxShadow: '3px 3px 0 0 #00595c',
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  type="submit"
+                  disabled={commentPending || !directCommentText.trim()}
+                  style={{
+                    padding: '12px 18px', background: '#fea619', border: '2.5px solid #00595c',
+                    color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
+                    fontWeight: 700, textTransform: 'uppercase', cursor: commentPending ? 'not-allowed' : 'pointer',
+                    boxShadow: '3px 3px 0 0 #00595c',
+                    opacity: commentPending ? 0.7 : 1,
+                    width: '100%', textAlign: 'center'
+                  }}
+                >
+                  {commentPending ? '…' : 'Comment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => directFileInputRef.current?.click()}
+                  style={{
+                    padding: '8px 14px', background: '#f5f3ee', border: '2.5px solid #00595c',
+                    color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
+                    fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+                    boxShadow: '3px 3px 0 0 #00595c',
+                    display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>attach_file</span>
+                  Attach
+                </button>
+                <input
+                  type="file"
+                  multiple
+                  ref={directFileInputRef}
+                  onChange={(e) => {
+                    const files = e.target.files
+                    if (files) setDirectAttachedFiles(prev => [...prev, ...Array.from(files)])
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </div>
+            </form>
+            {directAttachedFiles.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, marginBottom: 4 }}>
+                {directAttachedFiles.map((f, idx) => (
+                  <div key={idx} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#e8f5f5', border: '2px solid #00595c',
+                    padding: '4px 8px',
+                    fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', color: '#00595c',
+                    boxShadow: '2px 2px 0 0 #00595c'
+                  }}>
+                    <span>{f.name}</span>
+                    <span 
+                      className="material-symbols-outlined" 
+                      onClick={() => setDirectAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                      style={{ fontSize: 14, cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      close
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div style={{
             border: '2px dashed #bec9c9',
