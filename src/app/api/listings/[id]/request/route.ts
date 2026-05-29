@@ -46,7 +46,29 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "You cannot submit a request for your own listing." }, { status: 400 });
   }
 
-  // 3. Insert listing request
+  // 3. Upsert conversation first
+  const autoMessage = `[${request_type.toUpperCase()} REQUEST] Hi! I'm interested in your listing: "${listing.title}". I have submitted a formal request to ${request_type} it for $${listing.price.toFixed(2)}. Let's coordinate!`;
+  
+  const { data: conversation, error: convError } = await supabase
+    .from("conversations")
+    .upsert(
+      {
+        listing_id: listingId,
+        buyer_id: requesterId,
+        seller_id: listing.seller_id,
+        last_message: autoMessage,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "listing_id, buyer_id, seller_id" }
+    )
+    .select("id")
+    .single();
+
+  if (convError || !conversation) {
+    return NextResponse.json({ error: convError?.message || "Failed to create conversation." }, { status: 500 });
+  }
+
+  // 4. Insert listing request
   const { data: newRequest, error: reqError } = await supabase
     .from("listing_requests")
     .insert({
@@ -67,16 +89,16 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: reqError.message }, { status: 500 });
   }
 
-  // 4. Automatically send a DM to the seller using the messages system!
-  const autoMessage = `[${request_type.toUpperCase()} REQUEST] Hi! I'm interested in your listing: "${listing.title}". I have submitted a formal request to ${request_type} it for $${listing.price.toFixed(2)}. Let's coordinate!`;
+  // 5. Automatically send a DM to the seller inside the conversation!
   await supabase
     .from("messages")
     .insert({
+      conversation_id: conversation.id,
       listing_id: listingId,
       sender_id: requesterId,
       receiver_id: listing.seller_id,
       body: autoMessage,
     });
 
-  return NextResponse.json({ success: true, data: newRequest }, { status: 201 });
+  return NextResponse.json({ success: true, data: newRequest, conversation_id: conversation.id }, { status: 201 });
 }

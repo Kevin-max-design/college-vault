@@ -68,9 +68,30 @@ export async function POST(req: NextRequest) {
 
   const supabase = await getSupabaseClient();
 
+  // Upsert conversation to comply with conversation model
+  const { data: conversation, error: convError } = await supabase
+    .from("conversations")
+    .upsert(
+      {
+        listing_id,
+        buyer_id: result.user.id,
+        seller_id: receiver_id,
+        last_message: body,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "listing_id, buyer_id, seller_id" }
+    )
+    .select("id")
+    .single();
+
+  if (convError || !conversation) {
+    return NextResponse.json({ error: convError?.message || "Failed to create conversation." }, { status: 500 });
+  }
+
   const { data, error } = await supabase
     .from("messages")
     .insert({
+      conversation_id: conversation.id,
       listing_id,
       sender_id: result.user.id,
       receiver_id,

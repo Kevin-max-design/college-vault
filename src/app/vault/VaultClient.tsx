@@ -3,8 +3,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { ClientCache } from '@/utils/cache'
+import { createClient } from '@/utils/supabase/client'
 
-const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget'), {
+const MarketChatDrawer = dynamic(() => import('@/app/components/MarketChatDrawer'), {
   ssr: false,
 })
 
@@ -59,7 +60,13 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [searchVal, setSearchVal] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeChat, setActiveChat] = useState<{ recipientId: string; handle: string; listingId: string } | null>(null)
+  
+  // State for real conversations & inbox
+  const [view, setView] = useState<'browse' | 'inbox'>('browse')
+  const [conversations, setConversations] = useState<any[]>([])
+  const [userProfile, setUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null)
+  const [isInboxLoading, setIsInboxLoading] = useState(false)
+  const [activeChat, setActiveChat] = useState<{ conversationId: string; recipientName: string; listingTitle: string } | null>(null)
   
   // Phase 9 & Phase 11 persistent states
   const [savedListings, setSavedListings] = useState<string[]>([])
@@ -99,6 +106,65 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       })
       .catch(() => {})
   }, [])
+
+  // Fetch current user's profile on mount
+  useEffect(() => {
+    fetch('/api/profile')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setUserProfile(data)
+      })
+      .catch(err => console.error(err))
+  }, [])
+
+  // Fetch conversations function
+  const fetchConversations = useCallback(async () => {
+    setIsInboxLoading(true)
+    try {
+      const res = await fetch('/api/conversations')
+      if (res.ok) {
+        const data = await res.json()
+        setConversations(data.conversations || [])
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsInboxLoading(false)
+    }
+  }, [])
+
+  // Fetch conversations when view changes to inbox
+  useEffect(() => {
+    if (view === 'inbox') {
+      fetchConversations()
+    }
+  }, [view, fetchConversations])
+
+  // Real-time conversations sync
+  useEffect(() => {
+    const supabaseClient = createClient()
+    const channel = supabaseClient
+      .channel('realtime-conversations')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations'
+        },
+        async (payload) => {
+          const newConv = (payload.new || payload.old) as any
+          if (newConv && (newConv.buyer_id === currentUser.id || newConv.seller_id === currentUser.id)) {
+            fetchConversations()
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabaseClient.removeChannel(channel)
+    }
+  }, [currentUser.id, fetchConversations])
 
   // Optimistic Bookmark Save Toggle
   const handleToggleSave = useCallback(async (listing: Listing) => {
@@ -181,6 +247,17 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
         const err = await res.json().catch(() => ({}))
         setToast({ type: 'error', message: err.error || 'Failed to submit request.' })
         setTimeout(() => setToast(null), 4000)
+      } else {
+        const data = await res.json()
+        if (data.conversation_id) {
+          const otherUser = listing.seller?.full_name || 'Seller'
+          setActiveChat({
+            conversationId: data.conversation_id,
+            recipientName: otherUser,
+            listingTitle: listing.title
+          })
+          setView('inbox')
+        }
       }
     } catch (err: any) {
       // Step 5: Rollback on connection loss
@@ -194,44 +271,47 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   // Stable handler to message listing seller, preventing cards from re-rendering
   const handleMessageSeller = useCallback(async (listing: Listing) => {
     if (listing.seller_id === currentUser.id) {
-      alert('This is your own listing!')
+      setToast({ type: 'error', message: 'You cannot message your own listing.' })
+      setTimeout(() => setToast(null), 4000)
       return
     }
 
-    // Stateful Optimistic UI Update
-    const previousChat = activeChat
-    const cleanName = (listing.seller?.full_name ?? 'Seller').replace(/\s+/g, '_')
-    const recipientHandle = `u/${cleanName}_${listing.seller_id.substring(0, 4)}`
-    
-    // Open chat widget instantly
-    setActiveChat({
-      recipientId: listing.seller_id,
-      handle: recipientHandle,
-      listingId: listing.id
-    })
+    const initialBody = `Hi! I'm interested in your listing: "${listing.title}"`
 
     try {
-      const res = await fetch('/api/messages', {
+      const res = await fetch('/api/conversations/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           listing_id: listing.id,
-          receiver_id: listing.seller_id,
-          body: `Hi! I'm interested in your listing: "${listing.title}"`,
+          body: initialBody,
+          request_type: 'message'
         }),
       })
-      if (!res.ok) {
-        // Rollback state on API failure
-        setActiveChat(previousChat)
+
+      if (res.ok) {
+        const data = await res.json()
+        const otherUser = data.conversation.seller_id === currentUser.id 
+          ? data.conversation.buyer?.full_name 
+          : data.conversation.seller?.full_name
+
+        setActiveChat({
+          conversationId: data.conversation.id,
+          recipientName: otherUser || 'Seller',
+          listingTitle: listing.title
+        })
+
+        setView('inbox')
+      } else {
         const err = await res.json().catch(() => ({}))
-        alert(err.error || 'Could not send message.')
+        setToast({ type: 'error', message: err.error || 'Could not start conversation.' })
+        setTimeout(() => setToast(null), 4000)
       }
     } catch {
-      // Rollback state on network loss
-      setActiveChat(previousChat)
-      alert('Network error — please try again.')
+      setToast({ type: 'error', message: 'Network error — please try again.' })
+      setTimeout(() => setToast(null), 4000)
     }
-  }, [currentUser.id, activeChat])
+  }, [currentUser.id])
 
   // Debounce search input to avoid heavy calculations on every keystroke
   useEffect(() => {
@@ -327,150 +407,336 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
 
       {/* ── Search & Filter Header ───────────────────────────────── */}
       <div className="sticky top-0 z-40" style={{ background: '#fdfcf8', borderBottom: '2px solid #00595c', padding: '16px 20px' }}>
-        <input
-          type="text"
-          placeholder="Search textbooks, lab coats, laptops..."
-          value={searchVal}
-          onChange={(e) => setSearchVal(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            background: '#fbf9f4',
-            border: '2px solid #00595c',
-            borderRadius: 2,
-            fontFamily: 'var(--font-jakarta)',
-            fontSize: '0.95rem',
-            color: '#1b1c19',
-            outline: 'none',
-            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.04)',
-            marginBottom: 12,
-          }}
-        />
-        
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ margin: '0 -20px', padding: '0 20px' }}>
-          {/* Types */}
-          <div className="flex gap-2 pr-4" style={{ borderRight: '2px solid #e4e2dd' }}>
-            {TYPES.map(type => (
-              <button
-                key={type}
-                onClick={() => setActiveType(type)}
-                className="label-caps"
-                style={{
-                  background: activeType === type ? '#fea619' : '#f0eee9',
-                  color: activeType === type ? '#684000' : '#3e4949',
-                  border: `2px solid ${activeType === type ? '#855300' : 'transparent'}`,
-                  padding: '4px 12px',
-                  borderRadius: 16,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-
-          {/* Categories */}
-          <div className="flex gap-2 pl-2">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className="label-caps"
-                style={{
-                  background: activeCategory === cat ? '#00595c' : '#f0eee9',
-                  color: activeCategory === cat ? '#ffffff' : '#3e4949',
-                  border: `2px solid ${activeCategory === cat ? '#002021' : 'transparent'}`,
-                  padding: '4px 12px',
-                  borderRadius: 16,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+        {/* Neobrutalist View Tabs */}
+        <div style={{
+          display: 'flex',
+          background: '#f0eee9',
+          border: '2px solid #00595c',
+          boxShadow: '3px 3px 0 0 #00595c',
+          marginBottom: view === 'browse' ? 16 : 0,
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}>
+          <button
+            onClick={() => setView('browse')}
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              fontFamily: 'var(--font-jakarta)',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              background: view === 'browse' ? '#00595c' : 'transparent',
+              color: view === 'browse' ? '#ffffff' : '#00595c',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            Browse Market
+          </button>
+          <button
+            onClick={() => setView('inbox')}
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              fontFamily: 'var(--font-jakarta)',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              background: view === 'inbox' ? '#00595c' : 'transparent',
+              color: view === 'inbox' ? '#ffffff' : '#00595c',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            My Inbox
+          </button>
         </div>
+
+        {view === 'browse' && (
+          <>
+            <input
+              type="text"
+              placeholder="Search textbooks, lab coats, laptops..."
+              value={searchVal}
+              onChange={(e) => setSearchVal(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: '#fbf9f4',
+                border: '2px solid #00595c',
+                borderRadius: 2,
+                fontFamily: 'var(--font-jakarta)',
+                fontSize: '0.95rem',
+                color: '#1b1c19',
+                outline: 'none',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.04)',
+                marginBottom: 12,
+              }}
+            />
+            
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ margin: '0 -20px', padding: '0 20px' }}>
+              {/* Types */}
+              <div className="flex gap-2 pr-4" style={{ borderRight: '2px solid #e4e2dd' }}>
+                {TYPES.map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setActiveType(type)}
+                    className="label-caps"
+                    style={{
+                      background: activeType === type ? '#fea619' : '#f0eee9',
+                      color: activeType === type ? '#684000' : '#3e4949',
+                      border: `2px solid ${activeType === type ? '#855300' : 'transparent'}`,
+                      padding: '4px 12px',
+                      borderRadius: 16,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+
+              {/* Categories */}
+              <div className="flex gap-2 pl-2">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className="label-caps"
+                    style={{
+                      background: activeCategory === cat ? '#00595c' : '#f0eee9',
+                      color: activeCategory === cat ? '#ffffff' : '#3e4949',
+                      border: `2px solid ${activeCategory === cat ? '#002021' : 'transparent'}`,
+                      padding: '4px 12px',
+                      borderRadius: 16,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* ── Listings Grid ───────────────────────────────────────── */}
-      <div style={{ padding: '20px' }}>
-        {filteredListings.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6e7979' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 56, marginBottom: 16, opacity: 0.4, display: 'block', color: '#00595c' }}>inventory_2</span>
-            <p style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.4rem', fontWeight: 700, color: '#1b1c19', marginBottom: 8 }}>
-              {listings.length === 0 ? 'Nothing listed yet' : 'No items match your filters'}
-            </p>
-            <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', color: '#6e7979', marginBottom: 24 }}>
-              {listings.length === 0
-                ? 'Be the first to sell or rent something to your classmates!'
-                : 'Try clearing your filters or searching for something else.'}
-            </p>
-            {listings.length === 0 && (
+      {/* ── Content Area ───────────────────────────────────────── */}
+      {view === 'browse' ? (
+        <>
+          {/* Listings Grid */}
+          <div style={{ padding: '20px' }}>
+            {filteredListings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6e7979' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 56, marginBottom: 16, opacity: 0.4, display: 'block', color: '#00595c' }}>inventory_2</span>
+                <p style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.4rem', fontWeight: 700, color: '#1b1c19', marginBottom: 8 }}>
+                  {listings.length === 0 ? 'Nothing listed yet' : 'No items match your filters'}
+                </p>
+                <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', color: '#6e7979', marginBottom: 24 }}>
+                  {listings.length === 0
+                    ? 'Be the first to sell or rent something to your classmates!'
+                    : 'Try clearing your filters or searching for something else.'}
+                </p>
+                {listings.length === 0 && (
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    style={{
+                      background: '#fea619', color: '#684000',
+                      border: '2px solid #855300', padding: '10px 24px',
+                      fontFamily: 'var(--font-jakarta)', fontWeight: 700,
+                      fontSize: '0.9rem', cursor: 'pointer', borderRadius: 2,
+                      boxShadow: '3px 3px 0 0 #855300', display: 'inline-flex',
+                      alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</span>
+                    Post Your First Listing
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-6">
+                {filteredListings.map(listing => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    currentUserId={currentUser.id}
+                    onMessage={handleMessageSeller}
+                    isSaved={savedListings.includes(listing.id)}
+                    isRequested={requestedListings.includes(listing.id)}
+                    onToggleSave={handleToggleSave}
+                    onRequest={handleRentBuyRequest}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Floating Action Button */}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            style={{
+              position: 'fixed',
+              bottom: 100, // Above bottom nav
+              right: 20,
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: '#fea619',
+              color: '#684000',
+              border: '2px solid #855300',
+              boxShadow: '4px 4px 0 0 #855300',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 50,
+              transition: 'transform 0.1s',
+            }}
+            onPointerDown={(e: any) => e.currentTarget.style.transform = 'translate(2px, 2px)'}
+            onPointerUp={(e: any) => e.currentTarget.style.transform = 'none'}
+            onPointerLeave={(e: any) => e.currentTarget.style.transform = 'none'}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 28, fontVariationSettings: "'wght' 600" }}>add</span>
+          </button>
+        </>
+      ) : (
+        /* Inbox View */
+        <div style={{ padding: '20px' }}>
+          {isInboxLoading ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#00595c' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, animation: 'spin 1s linear infinite', marginBottom: 12 }}>sync</span>
+              <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', fontWeight: 600 }}>Loading your conversations...</p>
+            </div>
+          ) : conversations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6e7979' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 56, marginBottom: 16, opacity: 0.4, display: 'block', color: '#00595c' }}>chat_bubble</span>
+              <p style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.4rem', fontWeight: 700, color: '#1b1c19', marginBottom: 8 }}>
+                No conversations yet
+              </p>
+              <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', color: '#6e7979', marginBottom: 24 }}>
+                When you message sellers or receive requests on your items, they will appear here.
+              </p>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setView('browse')}
                 style={{
                   background: '#fea619', color: '#684000',
                   border: '2px solid #855300', padding: '10px 24px',
                   fontFamily: 'var(--font-jakarta)', fontWeight: 700,
                   fontSize: '0.9rem', cursor: 'pointer', borderRadius: 2,
-                  boxShadow: '3px 3px 0 0 #855300', display: 'inline-flex',
-                  alignItems: 'center', gap: 6,
+                  boxShadow: '3px 3px 0 0 #855300',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</span>
-                Post Your First Listing
+                Browse Marketplace
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-6">
-            {filteredListings.map(listing => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                currentUserId={currentUser.id}
-                onMessage={handleMessageSeller}
-                isSaved={savedListings.includes(listing.id)}
-                isRequested={requestedListings.includes(listing.id)}
-                onToggleSave={handleToggleSave}
-                onRequest={handleRentBuyRequest}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {conversations.map((conv) => {
+                const isBuyer = conv.buyer_id === currentUser.id
+                const otherUser = isBuyer ? conv.seller : conv.buyer
+                const otherUserName = otherUser?.full_name || 'Anonymous'
+                const formattedTime = new Date(conv.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-      {/* ── Floating Action Button ──────────────────────────────── */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        style={{
-          position: 'fixed',
-          bottom: 100, // Above bottom nav
-          right: 20,
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          background: '#fea619',
-          color: '#684000',
-          border: '2px solid #855300',
-          boxShadow: '4px 4px 0 0 #855300',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 50,
-          transition: 'transform 0.1s',
-        }}
-        onPointerDown={(e: any) => e.currentTarget.style.transform = 'translate(2px, 2px)'}
-        onPointerUp={(e: any) => e.currentTarget.style.transform = 'none'}
-        onPointerLeave={(e: any) => e.currentTarget.style.transform = 'none'}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 28, fontVariationSettings: "'wght' 600" }}>add</span>
-      </button>
+                return (
+                  <div
+                    key={conv.id}
+                    onClick={() => {
+                      setActiveChat({
+                        conversationId: conv.id,
+                        recipientName: otherUserName,
+                        listingTitle: conv.listing?.title || 'Item'
+                      })
+                    }}
+                    style={{
+                      background: '#fbf9f4',
+                      border: '2px solid #00595c',
+                      boxShadow: '4px 4px 0 0 #00595c',
+                      padding: '16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      position: 'relative',
+                      transition: 'transform 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translate(-2px, -2px)'
+                      e.currentTarget.style.boxShadow = '6px 6px 0 0 #00595c'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'none'
+                      e.currentTarget.style.boxShadow = '4px 4px 0 0 #00595c'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%', background: '#dbdad5',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+                        }}>
+                          {otherUser?.avatar_url ? (
+                            <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6e7979' }}>person</span>
+                          )}
+                        </div>
+                        <span style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 800, fontSize: '0.85rem', color: '#1b1c19' }}>
+                          {otherUserName}
+                        </span>
+                        <span style={{
+                          background: isBuyer ? '#e8f5f5' : '#fef5e7',
+                          color: isBuyer ? '#00595c' : '#855300',
+                          border: `1.5px solid ${isBuyer ? '#00595c' : '#855300'}`,
+                          padding: '1px 6px',
+                          fontSize: '0.55rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {isBuyer ? 'Buying' : 'Selling'}
+                        </span>
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', color: '#6e7979' }}>
+                        {formattedTime}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      fontFamily: 'var(--font-newsreader)',
+                      fontWeight: 800,
+                      fontSize: '1.05rem',
+                      color: '#00595c',
+                    }}>
+                      {conv.listing?.title || 'Unknown Item'}
+                    </div>
+
+                    <div style={{
+                      fontFamily: 'var(--font-jakarta)',
+                      fontSize: '0.78rem',
+                      color: '#3e4949',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {conv.last_message || 'No messages yet.'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Create Listing Modal ────────────────────────────────── */}
       {isModalOpen && (
@@ -546,12 +812,14 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       )}
 
       {activeChat && (
-        <DirectChatWidget
-          currentUserHandle={currentUser.email || 'You'}
-          recipient={{ id: activeChat.recipientId, handle: activeChat.handle }}
+        <MarketChatDrawer
+          conversationId={activeChat.conversationId}
+          currentUserId={currentUser.id}
+          currentUserFullName={userProfile?.full_name || 'You'}
+          currentUserAvatarUrl={userProfile?.avatar_url || null}
+          recipientName={activeChat.recipientName}
+          listingTitle={activeChat.listingTitle}
           onClose={() => setActiveChat(null)}
-          classroomId={activeChat.listingId}
-          initialMessage={`Hey! Thanks for your interest in my listing "${listings.find(l => l.id === activeChat.listingId)?.title || 'Item'}". Is there anything specific you would like to know?`}
         />
       )}
 
