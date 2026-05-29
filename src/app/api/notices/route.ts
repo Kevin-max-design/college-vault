@@ -68,24 +68,70 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const user = result.user;
+
+  // Students cannot post notices
+  if (user.role === "student") {
+    return NextResponse.json(
+      { error: "Students cannot post notices." },
+      { status: 403 }
+    );
+  }
+
+  let targetDept: string | null = null;
+
+  if (user.role === "hod") {
+    // Enforce profile department, ignore frontend department value
+    if (!user.department || user.department.trim() === "") {
+      return NextResponse.json(
+        { error: "Your HOD profile has no department assigned. Please contact admin." },
+        { status: 400 }
+      );
+    }
+    targetDept = user.department.trim();
+  } else if (user.role === "principal" || (user.role as string) === "admin") {
+    // Principal/admin do not need department unless posting department-specific notice.
+    // If scope === "global", department is not needed. If scope === "department", require selected department.
+    if (scope === "department") {
+      if (!department || typeof department !== "string" || department.trim() === "") {
+        return NextResponse.json(
+          { error: "department is required for department-scoped notices." },
+          { status: 400 }
+        );
+      }
+      targetDept = department.trim();
+    } else {
+      targetDept = null;
+    }
+  } else if (user.role === "faculty") {
+    // Faculty has a department, default to their profile department if not provided
+    const dept = (department && typeof department === "string" && department.trim() !== "")
+      ? department.trim()
+      : (user.department && typeof user.department === "string" && user.department.trim() !== "")
+        ? user.department.trim()
+        : null;
+
+    if (scope === "department" && (!dept || dept === "")) {
+      return NextResponse.json(
+        { error: "department is required for department-scoped notices." },
+        { status: 400 }
+      );
+    }
+    targetDept = dept;
+  }
+
   // Enforce scope rules
-  if (scope === "global" && result.user.role !== "principal") {
+  if (scope === "global" && user.role !== "principal" && (user.role as string) !== "admin") {
     return NextResponse.json(
       { error: "Only the Principal can post global notices." },
       { status: 403 }
     );
   }
   if (scope === "department") {
-    if (!["faculty", "hod", "principal"].includes(result.user.role)) {
+    if (!["faculty", "hod", "principal", "admin"].includes(user.role as string)) {
       return NextResponse.json(
         { error: "Only faculty or HOD can post department notices." },
         { status: 403 }
-      );
-    }
-    if (!department) {
-      return NextResponse.json(
-        { error: "department is required for department-scoped notices." },
-        { status: 400 }
       );
     }
   }
@@ -99,7 +145,7 @@ export async function POST(req: NextRequest) {
       title,
       body: body ?? "",
       scope,
-      department: scope === "global" ? null : (department ?? result.user.department),
+      department: scope === "global" ? null : targetDept,
       tag: tag ?? "general",
     })
     .select(`
@@ -149,7 +195,6 @@ export async function POST(req: NextRequest) {
       .neq('id', result.user.id); // never notify self
 
     if (scope === 'department') {
-      const targetDept = department ?? result.user.department;
       targetQuery = targetQuery.eq('department', targetDept);
     }
     // scope === 'global' → no filter (all users except self)

@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         source: "classroom",
         title: "New direct message",
         body: `${senderName} sent you a message`,
-        link: `/classrooms/${classroom_id}`,
+        link: `/vault?view=inbox&type=classroom_dm&classroomId=${classroom_id}&userId=${senderId}&userName=${encodeURIComponent(senderName)}`,
       });
     } catch (notifErr) {
       console.error("Async peer-message notification dispatch failed:", notifErr);

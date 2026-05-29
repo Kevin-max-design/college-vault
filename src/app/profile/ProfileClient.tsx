@@ -129,7 +129,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         body: JSON.stringify({
           full_name: editName.trim(),
           department: editDept,
-          year_of_study: editYear,
+          year_of_study: profile.role === 'student' ? editYear : undefined,
           avatar_url: finalAvatarUrl,
         }),
       })
@@ -139,7 +139,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
         ClientCache.set('profile', {
           full_name: editName.trim(),
           department: editDept,
-          year_of_study: editYear,
+          year_of_study: profile.role === 'student' ? editYear : profile.year_of_study,
           avatar_url: finalAvatarUrl,
         })
         setShowEdit(false)
@@ -201,7 +201,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
             {profile.full_name || 'Anonymous'}
           </h1>
           <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {profile.role} • {profile.department} (Yr {profile.year_of_study})
+            {profile.role} • {profile.department}{profile.role === 'student' ? ` (Yr ${profile.year_of_study})` : ''}
           </div>
           <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', opacity: 0.7, marginTop: 4 }}>
             {email}
@@ -502,14 +502,16 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
                   {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Year of Study</label>
-                <select className="cv-input" value={editYear} onChange={e => setEditYear(Number(e.target.value))}>
-                  {(['MATHS', 'PHY', 'CHEM', 'ENG'].includes(editDept)
-                    ? [1]
-                    : ['MCA', 'MBA'].includes(editDept) ? [1, 2] : [1, 2, 3, 4]).map(y => <option key={y} value={y}>Year {y}</option>)}
-                </select>
-              </div>
+              {profile.role === 'student' && (
+                <div>
+                  <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Year of Study</label>
+                  <select className="cv-input" value={editYear} onChange={e => setEditYear(Number(e.target.value))}>
+                    {(['MATHS', 'PHY', 'CHEM', 'ENG'].includes(editDept)
+                      ? [1]
+                      : ['MCA', 'MBA'].includes(editDept) ? [1, 2] : [1, 2, 3, 4]).map(y => <option key={y} value={y}>Year {y}</option>)}
+                  </select>
+                </div>
+              )}
               {editError && <p style={{ color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem' }}>{editError}</p>}
               <button type="submit" disabled={editSaving} style={{
                 width: '100%', padding: '14px', background: '#fea619', border: '2px solid #00595c',

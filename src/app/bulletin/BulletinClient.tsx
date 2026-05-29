@@ -40,27 +40,70 @@ const TACK = (role: string, pinned: boolean) => {
 // Slight random rotation for paper notes
 const ROTATIONS = [-2.5, 1.8, -1.2, 2.1, -0.8, 1.5, -2.0, 0.9, -1.6, 2.4, -0.5, 1.1]
 
+const DEPARTMENTS = [
+  { value: 'CSE', label: 'Computer Science & Engineering (CSE)' },
+  { value: 'CSE-DS', label: 'CSE (Data Science)' },
+  { value: 'CSE-AIML', label: 'CSE (AI & Machine Learning)' },
+  { value: 'CSE-CS', label: 'CSE (Cyber Security)' },
+  { value: 'CSBS', label: 'CSE & Business Systems (CSBS)' },
+  { value: 'ECE', label: 'Electronics & Communication Engineering (ECE)' },
+  { value: 'EEE', label: 'Electrical & Electronics Engineering (EEE)' },
+  { value: 'ME', label: 'Mechanical Engineering (ME)' },
+  { value: 'CE', label: 'Civil Engineering (CE)' },
+  { value: 'MCA', label: 'Master of Computer Applications (MCA)' },
+  { value: 'MBA', label: 'Management Studies (MBA)' },
+  { value: 'MATHS', label: 'Mathematics (S&H)' },
+  { value: 'PHY', label: 'Physics (S&H)' },
+  { value: 'CHEM', label: 'Chemistry (S&H)' },
+  { value: 'ENG', label: 'English (S&H)' },
+]
+
 /* ── Post Modal ──────────────────────────────────────────────────── */
 function PostNoticeModal({ userRole, userDepartment, onClose, onPosted }:
   { userRole: string; userDepartment: string; onClose: () => void; onPosted: (n: Notice) => void }) {
-  const [title, setTitle] = useState(''); const [body, setBody] = useState('')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
   const [scope, setScope] = useState<'global' | 'department' | 'personal'>('personal')
   const [tag, setTag]     = useState<'academic' | 'event' | 'urgent' | 'general'>('general')
-  const [loading, setLoading] = useState(false); const [error, setError] = useState('')
+  const [selectedDept, setSelectedDept] = useState(userDepartment || 'CSE')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const canGlobal = userRole === 'principal'
-  const canDept   = ['faculty', 'hod', 'principal'].includes(userRole)
+  const canGlobal = userRole === 'principal' || userRole === 'admin'
+  const canDept   = ['faculty', 'hod', 'principal', 'admin'].includes(userRole)
   const scopes    = [
     { v: 'personal', l: 'Personal', show: true },
     { v: 'department', l: 'Department', show: canDept },
     { v: 'global', l: 'College-wide', show: canGlobal },
   ].filter(o => o.show)
 
+  const isHod = userRole === 'hod'
+  const isHodMissingDept = isHod && (!userDepartment || userDepartment.trim() === '')
+  const isSubmitDisabled = loading || (scope === 'department' && isHodMissingDept)
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) { setError('Title required'); return }
+    if (scope === 'department' && isHodMissingDept) {
+      setError('Your HOD profile has no department assigned.');
+      return;
+    }
     setLoading(true)
-    const res  = await fetch('/api/notices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), body: body.trim(), scope, tag }) })
+    const targetDeptVal = scope === 'department' 
+      ? (['principal', 'admin'].includes(userRole) ? selectedDept : userDepartment)
+      : null;
+
+    const res  = await fetch('/api/notices', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ 
+        title: title.trim(), 
+        body: body.trim(), 
+        scope, 
+        tag, 
+        department: targetDeptVal 
+      }) 
+    })
     const data = await res.json(); setLoading(false)
     if (!res.ok) { setError(data.error ?? 'Error'); return }
     onPosted(data); onClose()
@@ -98,13 +141,38 @@ function PostNoticeModal({ userRole, userDepartment, onClose, onPosted }:
               </button>
             ))}
           </div>
+
+          {scope === 'department' && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, color: '#8b6914', marginBottom: 4, textTransform: 'uppercase' }}>
+                Department Notice Target
+              </label>
+              {['principal', 'admin'].includes(userRole) ? (
+                <select value={selectedDept} onChange={e => setSelectedDept(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '2px solid #5c3a1e', background: '#fffdf5', fontFamily: 'var(--font-jakarta)', fontSize: '0.88rem', color: '#1a0f00', outline: 'none', boxShadow: '2px 2px 0 0 #5c3a1e' }}>
+                  {DEPARTMENTS.map(d => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input type="text" value={userDepartment ? (DEPARTMENTS.find(d => d.value === userDepartment)?.label || userDepartment) : ''} readOnly style={{ width: '100%', padding: '10px 12px', border: '2px solid #5c3a1e', background: '#e9e3d5', fontFamily: 'var(--font-jakarta)', fontSize: '0.88rem', fontWeight: 600, color: '#5c3a1e', outline: 'none', cursor: 'not-allowed', boxShadow: '2px 2px 0 0 #5c3a1e' }} />
+                  {isHodMissingDept && (
+                    <p style={{ marginTop: 4, fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#a61c0f', fontWeight: 600 }}>
+                      Your HOD profile has no department assigned.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Notice title…"
             style={{ width: '100%', padding: '10px 12px', marginBottom: 10, border: '2px solid #5c3a1e', background: '#fffdf5', fontFamily: 'var(--font-newsreader)', fontSize: '1rem', fontWeight: 600, color: '#1a0f00', outline: 'none', boxShadow: '2px 2px 0 0 #5c3a1e' }} />
           <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your notice here… (optional)" rows={4}
             style={{ width: '100%', padding: '10px 12px', border: '2px solid #5c3a1e', background: '#fffdf5', fontFamily: 'var(--font-jakarta)', fontSize: '0.88rem', lineHeight: 1.6, color: '#1a0f00', resize: 'none', outline: 'none', boxShadow: '2px 2px 0 0 #5c3a1e' }} />
           {error && <p style={{ marginTop: 6, fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#a61c0f' }}>{error}</p>}
-          <button type="submit" disabled={loading}
-            style={{ marginTop: 14, width: '100%', padding: '12px', background: '#d4ac0d', border: '2px solid #5c3a1e', color: '#3a1f0a', fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '3px 3px 0 0 #5c3a1e', opacity: loading ? 0.7 : 1 }}>
+          <button type="submit" disabled={isSubmitDisabled}
+            style={{ marginTop: 14, width: '100%', padding: '12px', background: isSubmitDisabled ? '#ccc' : '#d4ac0d', border: '2px solid #5c3a1e', color: isSubmitDisabled ? '#777' : '#3a1f0a', fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: isSubmitDisabled ? 'not-allowed' : 'pointer', boxShadow: isSubmitDisabled ? 'none' : '3px 3px 0 0 #5c3a1e', opacity: loading ? 0.7 : 1 }}>
             {loading ? 'Pinning…' : 'Pin to Board →'}
           </button>
         </form>

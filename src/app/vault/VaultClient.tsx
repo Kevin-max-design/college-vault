@@ -10,6 +10,10 @@ const MarketChatDrawer = dynamic(() => import('@/app/components/MarketChatDrawer
   ssr: false,
 })
 
+const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget'), {
+  ssr: false,
+})
+
 interface Seller {
   id: string
   full_name: string
@@ -68,6 +72,49 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [userProfile, setUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null)
   const [isInboxLoading, setIsInboxLoading] = useState(false)
   const [activeChat, setActiveChat] = useState<{ conversationId: string; recipientName: string; listingTitle: string } | null>(null)
+  const [activeClassroomChat, setActiveClassroomChat] = useState<{
+    classroomId: string
+    recipientId: string
+    recipientHandle: string
+  } | null>(null)
+
+  // Parse query params to auto-open classroom DMs or select views
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const viewParam = params.get('view')
+    if (viewParam === 'inbox') {
+      setView('inbox')
+      
+      const typeParam = params.get('type')
+      if (typeParam === 'classroom_dm') {
+        const classroomId = params.get('classroomId')
+        const userIdParam = params.get('userId')
+        const userNameParam = params.get('userName')
+        if (classroomId && userIdParam) {
+          // Clear query params so we don't reopen it on refresh/back navigation
+          const url = new URL(window.location.href)
+          url.searchParams.delete('type')
+          url.searchParams.delete('classroomId')
+          url.searchParams.delete('userId')
+          url.searchParams.delete('userName')
+          window.history.replaceState({}, '', url.toString())
+
+          // Open classroom DM chat drawer
+          setActiveClassroomChat({
+            classroomId,
+            recipientId: userIdParam,
+            recipientHandle: userNameParam ? decodeURIComponent(userNameParam) : 'Classmate'
+          })
+          
+          // Mark as seen
+          try {
+            localStorage.setItem(`cv_chat_last_seen_${classroomId}_${userIdParam}`, new Date().toISOString())
+          } catch(e) {}
+        }
+      }
+    }
+  }, [])
   
   // Phase 9 & Phase 11 persistent states
   const [savedListings, setSavedListings] = useState<string[]>([])
@@ -142,10 +189,10 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const fetchConversations = useCallback(async () => {
     setIsInboxLoading(true)
     try {
-      const res = await fetch('/api/conversations')
+      const res = await fetch('/api/inbox')
       if (res.ok) {
         const data = await res.json()
-        setConversations(data.conversations || [])
+        setConversations(data.inbox || [])
       }
     } catch (err) {
       console.error(err)
@@ -161,10 +208,11 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
     }
   }, [view, fetchConversations])
 
-  // Real-time conversations sync
+  // Real-time conversations and peer messages sync
   useEffect(() => {
     const supabaseClient = createClient()
-    const channel = supabaseClient
+    
+    const conversationsChannel = supabaseClient
       .channel('realtime-conversations')
       .on(
         'postgres_changes',
@@ -182,8 +230,42 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       )
       .subscribe()
 
+    const peerSenderChannel = supabaseClient
+      .channel('realtime-peer-sender')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'peer_messages',
+          filter: `sender_id=eq.${currentUser.id}`
+        },
+        () => {
+          fetchConversations()
+        }
+      )
+      .subscribe()
+
+    const peerReceiverChannel = supabaseClient
+      .channel('realtime-peer-receiver')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'peer_messages',
+          filter: `receiver_id=eq.${currentUser.id}`
+        },
+        () => {
+          fetchConversations()
+        }
+      )
+      .subscribe()
+
     return () => {
-      supabaseClient.removeChannel(channel)
+      supabaseClient.removeChannel(conversationsChannel)
+      supabaseClient.removeChannel(peerSenderChannel)
+      supabaseClient.removeChannel(peerReceiverChannel)
     }
   }, [currentUser.id, fetchConversations])
 
@@ -803,21 +885,44 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {conversations.map((conv) => {
-                const isBuyer = conv.buyer_id === currentUser.id
-                const otherUser = isBuyer ? conv.seller : conv.buyer
-                const otherUserName = otherUser?.full_name || 'Anonymous'
-                const formattedTime = new Date(conv.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              {conversations.map((item) => {
+                const formattedTime = new Date(item.lastMessageAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(item.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                
+                // Read from localStorage to check if classroom DM is read
+                const storageKey = item.kind === 'classroom_dm' ? `cv_chat_last_seen_${item.classroomId}_${item.otherUserId}` : null;
+                const isUnreadClassroomDM = item.kind === 'classroom_dm' && (() => {
+                  try {
+                    const lastSeen = localStorage.getItem(storageKey!);
+                    if (!lastSeen) return true; // not seen yet
+                    return new Date(item.lastMessageAt).getTime() > new Date(lastSeen).getTime();
+                  } catch {
+                    return true;
+                  }
+                })();
 
                 return (
                   <div
-                    key={conv.id}
+                    key={item.id}
                     onClick={() => {
-                      setActiveChat({
-                        conversationId: conv.id,
-                        recipientName: otherUserName,
-                        listingTitle: conv.listing?.title || 'Item'
-                      })
+                      if (item.kind === 'market') {
+                        setActiveChat({
+                          conversationId: item.conversationId,
+                          recipientName: item.otherUserName,
+                          listingTitle: item.title
+                        })
+                      } else {
+                        // Open classroom DM
+                        try {
+                          localStorage.setItem(storageKey!, new Date().toISOString());
+                        } catch(e) {}
+                        setActiveClassroomChat({
+                          classroomId: item.classroomId,
+                          recipientId: item.otherUserId,
+                          recipientHandle: item.otherUserName
+                        })
+                        // Refresh to clear unread status dot
+                        fetchConversations()
+                      }
                     }}
                     style={{
                       background: '#fbf9f4',
@@ -840,33 +945,65 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                       e.currentTarget.style.boxShadow = '4px 4px 0 0 #00595c'
                     }}
                   >
+                    {/* Unread indicator dot */}
+                    {isUnreadClassroomDM && (
+                      <span style={{
+                        position: 'absolute',
+                        top: 16,
+                        right: 16,
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: '#ba1a1a',
+                        boxShadow: '0 0 4px #ba1a1a'
+                      }} />
+                    )}
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
                           width: 28, height: 28, borderRadius: '50%', background: '#dbdad5',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
                         }}>
-                          {otherUser?.avatar_url ? (
-                            <img src={otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          {item.otherUserAvatar ? (
+                            <img src={item.otherUserAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6e7979' }}>person</span>
                           )}
                         </div>
                         <span style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 800, fontSize: '0.85rem', color: '#1b1c19' }}>
-                          {otherUserName}
+                          {item.otherUserName}
                         </span>
+                        
+                        {/* Kind Badge */}
                         <span style={{
-                          background: isBuyer ? '#e8f5f5' : '#fef5e7',
-                          color: isBuyer ? '#00595c' : '#855300',
-                          border: `1.5px solid ${isBuyer ? '#00595c' : '#855300'}`,
+                          background: item.kind === 'market' ? (item.subtitle === 'Buying' ? '#e8f5f5' : '#fef5e7') : '#eafaf9',
+                          color: item.kind === 'market' ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') : '#0d7377',
+                          border: `1.5px solid ${item.kind === 'market' ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') : '#0d7377'}`,
                           padding: '1px 6px',
                           fontSize: '0.55rem',
                           fontWeight: 800,
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em'
                         }}>
-                          {isBuyer ? 'Buying' : 'Selling'}
+                          {item.kind === 'market' ? item.subtitle : 'Classroom DM'}
                         </span>
+
+                        {/* Role Badge */}
+                        {item.otherUserRole && item.otherUserRole !== 'student' && (
+                          <span style={{
+                            background: '#fdf2f2',
+                            color: '#ba1a1a',
+                            border: '1.5px solid #ba1a1a',
+                            padding: '1px 6px',
+                            fontSize: '0.55rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {item.otherUserRole}
+                          </span>
+                        )}
                       </div>
                       <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', color: '#6e7979' }}>
                         {formattedTime}
@@ -879,7 +1016,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                       fontSize: '1.05rem',
                       color: '#00595c',
                     }}>
-                      {conv.listing?.title || 'Unknown Item'}
+                      {item.kind === 'market' ? item.title : item.subtitle}
                     </div>
 
                     <div style={{
@@ -890,7 +1027,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}>
-                      {conv.last_message || 'No messages yet.'}
+                      {item.lastMessage}
                     </div>
                   </div>
                 )
@@ -1051,6 +1188,25 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
           recipientName={activeChat.recipientName}
           listingTitle={activeChat.listingTitle}
           onClose={() => setActiveChat(null)}
+        />
+      )}
+
+      {activeClassroomChat && (
+        <DirectChatWidget
+          currentUserHandle={userProfile?.full_name || 'You'}
+          currentUserId={currentUser.id}
+          recipient={{
+            id: activeClassroomChat.recipientId,
+            handle: activeClassroomChat.recipientHandle
+          }}
+          onClose={() => {
+            try {
+              localStorage.setItem(`cv_chat_last_seen_${activeClassroomChat.classroomId}_${activeClassroomChat.recipientId}`, new Date().toISOString());
+            } catch(e) {}
+            fetchConversations()
+            setActiveClassroomChat(null)
+          }}
+          classroomId={activeClassroomChat.classroomId}
         />
       )}
 

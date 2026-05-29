@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isConfigured } from '@/lib/supabase/client'
@@ -42,9 +42,33 @@ export default function ProfileSetupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [hoverAvatar, setHoverAvatar] = useState(false)
+  const [role, setRole] = useState<string>('student')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    if (!isConfigured) return
+    
+    async function loadProfile() {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, department, full_name')
+          .eq('id', user.id)
+          .single()
+        if (profile) {
+          if (profile.role) setRole(profile.role)
+          if (profile.department) setDepartment(profile.department)
+          if (profile.full_name) setFullName(profile.full_name)
+        }
+      }
+    }
+    loadProfile()
+  }, [])
 
   /* ── Avatar picker ──────────────────────────────────────────── */
   function handleAvatarClick() {
@@ -64,7 +88,7 @@ export default function ProfileSetupPage() {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name.'); return }
     if (!department)      { setError('Please select your department.'); return }
-    if (!year)            { setError('Please select your year of study.'); return }
+    if (role === 'student' && !year) { setError('Please select your year of study.'); return }
 
     setError('')
 
@@ -120,7 +144,7 @@ export default function ProfileSetupPage() {
           id: user.id,
           full_name: fullName.trim(),
           department,
-          year_of_study: year,
+          year_of_study: role === 'student' ? year : 1,
           ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
         },
         { onConflict: 'id' }
@@ -332,51 +356,53 @@ export default function ProfileSetupPage() {
             </div>
 
             {/* Year of Study */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label className="label-caps" style={{ color: '#00595c' }}>Year of Study</label>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                {getAvailableYears(department).map((y) => (
-                  <button
-                    key={y}
-                    type="button"
-                    onClick={() => setYear(y)}
-                    style={{
-                      width: 64,
-                      height: 64,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '2px solid',
-                      borderColor: year === y ? '#00595c' : '#6e7979',
-                      background: year === y ? '#fea619' : '#ffffff',
-                      color: year === y ? '#00595c' : '#3e4949',
-                      fontFamily: 'var(--font-newsreader)',
-                      fontSize: '1.75rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: year === y ? '4px 4px 0 0 #00595c' : 'none',
-                      transform: year === y ? 'translate(-2px,-2px)' : 'none',
-                      transition: 'all 0.2s ease',
-                      borderRadius: 0,
-                    }}
-                    onMouseOver={(e) => {
-                      if (year !== y) {
-                        e.currentTarget.style.borderColor = '#00595c'
-                        e.currentTarget.style.background = '#f0eee9'
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (year !== y) {
-                        e.currentTarget.style.borderColor = '#6e7979'
-                        e.currentTarget.style.background = '#ffffff'
-                      }
-                    }}
-                  >
-                    {y}
-                  </button>
-                ))}
+            {role === 'student' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label className="label-caps" style={{ color: '#00595c' }}>Year of Study</label>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  {getAvailableYears(department).map((y) => (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => setYear(y)}
+                      style={{
+                        width: 64,
+                        height: 64,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid',
+                        borderColor: year === y ? '#00595c' : '#6e7979',
+                        background: year === y ? '#fea619' : '#ffffff',
+                        color: year === y ? '#00595c' : '#3e4949',
+                        fontFamily: 'var(--font-newsreader)',
+                        fontSize: '1.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: year === y ? '4px 4px 0 0 #00595c' : 'none',
+                        transform: year === y ? 'translate(-2px,-2px)' : 'none',
+                        transition: 'all 0.2s ease',
+                        borderRadius: 0,
+                      }}
+                      onMouseOver={(e) => {
+                        if (year !== y) {
+                          e.currentTarget.style.borderColor = '#00595c'
+                          e.currentTarget.style.background = '#f0eee9'
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (year !== y) {
+                          e.currentTarget.style.borderColor = '#6e7979'
+                          e.currentTarget.style.background = '#ffffff'
+                        }
+                      }}
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Error */}
             {error && (
