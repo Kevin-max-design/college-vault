@@ -264,6 +264,7 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear)
   const [filter, setFilter] = useState<Filter>('all')
   const [searchVal, setSearchVal] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   // Stateful Stale-While-Revalidate caching of classrooms
@@ -333,48 +334,70 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
       {/* ── Anonymous Doubt ─────────────────────────────────── */}
       <AnonymousDoubt />
 
-      {/* ── Debounced Search Box ────────────────────────────── */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search classrooms by name or description..."
-          value={searchVal}
-          onChange={e => setSearchVal(e.target.value)}
-          className="cv-input"
-          style={{
-            width: '100%',
-            padding: '10px 14px',
-            background: '#fbf9f4',
-            border: '2px solid #00595c',
-            borderRadius: 2,
-            fontFamily: 'var(--font-jakarta)',
-            fontSize: '0.85rem',
-            color: '#1b1c19',
-            outline: 'none',
-            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.04)',
-          }}
-        />
-      </div>
+      {/* ── Filter Pills & Search ───────────────────────────── */}
+      <div className="flex items-center justify-between gap-2 mb-6 mt-2">
+        <div className="flex items-center gap-2">
+          {(['all', 'core', 'elective'] as Filter[]).map(f => {
+            const labels: Record<Filter, string> = { all: 'All', core: 'Core', elective: 'Elective' }
+            const isActive = filter === f
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`font-jakarta font-bold text-[0.6rem] tracking-widest uppercase px-3 py-1.5 border-2 cv-transition-btn rounded ${
+                  isActive
+                    ? 'bg-primary text-on-primary border-primary shadow-[1.5px_1.5px_0_0_#00595c]'
+                    : 'bg-surface text-outline border-outline-variant hover:border-primary hover:text-primary'
+                }`}
+              >
+                {labels[f]}
+              </button>
+            )
+          })}
+        </div>
 
-      {/* ── Filter Pills ────────────────────────────────────── */}
-      <div className="flex gap-2 mb-1">
-        {(['all', 'core', 'elective'] as Filter[]).map(f => {
-          const labels: Record<Filter, string> = { all: 'All', core: 'Core', elective: 'Elective' }
-          const isActive = filter === f
-          return (
+        {/* Inline Expandable Search */}
+        <div className="flex items-center gap-1.5 flex-1 justify-end max-w-[220px] sm:max-w-[280px]">
+          {showSearch ? (
+            <div className="flex items-center gap-1 w-full bg-surface border border-outline-variant px-2.5 py-1 rounded shadow-[1.5px_1.5px_0_0_#bec9c9] transition-all duration-300">
+              <span className="material-symbols-outlined text-[16px] text-outline opacity-80 select-none">search</span>
+              <input
+                type="text"
+                value={searchVal}
+                onChange={e => setSearchVal(e.target.value)}
+                placeholder="Search..."
+                autoFocus
+                className="w-full bg-transparent border-none outline-none font-jakarta text-xs text-outline placeholder:text-outline-variant"
+                style={{ padding: 0 }}
+              />
+              {searchVal && (
+                <button
+                  onClick={() => setSearchVal('')}
+                  className="p-0 border-none bg-transparent cursor-pointer flex items-center justify-center text-outline hover:text-primary"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setShowSearch(false)
+                  setSearchVal('')
+                }}
+                className="p-0 border-none bg-transparent cursor-pointer flex items-center justify-center text-outline hover:text-primary ml-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">cancel</span>
+              </button>
+            </div>
+          ) : (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`font-jakarta font-bold text-[0.6rem] tracking-widest uppercase px-3 py-1 border-2 cv-transition-btn ${
-                isActive
-                  ? 'bg-primary text-on-primary border-primary'
-                  : 'bg-surface text-outline border-outline-variant hover:border-primary hover:text-primary'
-              }`}
+              onClick={() => setShowSearch(true)}
+              title="Search Classrooms"
+              className="bg-surface text-outline border-2 border-outline-variant hover:border-primary hover:text-primary p-1.5 flex items-center justify-center cv-transition-btn rounded shadow-[1.5px_1.5px_0_0_#bec9c9] hover:shadow-[2px_2px_0_0_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
             >
-              {labels[f]}
+              <span className="material-symbols-outlined text-[16px]">search</span>
             </button>
-          )
-        })}
+          )}
+        </div>
       </div>
 
       {/* ── Core Subjects ───────────────────────────────────── */}
