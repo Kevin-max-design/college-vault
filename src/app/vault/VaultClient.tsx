@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
+
+const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget'), {
+  ssr: false,
+})
 
 interface Seller {
   id: string
@@ -42,6 +47,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successToast, setSuccessToast] = useState(false)
+  const [activeChat, setActiveChat] = useState<{ recipientId: string; handle: string; listingId: string } | null>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -335,7 +341,13 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                             }),
                           })
                           if (res.ok) {
-                            alert(`Message sent to ${listing.seller?.full_name || 'the seller'}!`)
+                            const cleanName = (listing.seller?.full_name ?? 'Seller').replace(/\s+/g, '_')
+                            const recipientHandle = `u/${cleanName}_${listing.seller_id.substring(0, 4)}`
+                            setActiveChat({
+                              recipientId: listing.seller_id,
+                              handle: recipientHandle,
+                              listingId: listing.id
+                            })
                           } else {
                             const err = await res.json()
                             alert(err.error || 'Could not send message.')
@@ -467,6 +479,16 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
             </form>
           </div>
         </div>
+      )}
+
+      {activeChat && (
+        <DirectChatWidget
+          currentUserHandle={currentUser.email || 'You'}
+          recipient={{ id: activeChat.recipientId, handle: activeChat.handle }}
+          onClose={() => setActiveChat(null)}
+          classroomId={activeChat.listingId}
+          initialMessage={`Hey! Thanks for your interest in my listing "${listings.find(l => l.id === activeChat.listingId)?.title || 'Item'}". Is there anything specific you would like to know?`}
+        />
       )}
 
       <style dangerouslySetInnerHTML={{__html: `

@@ -14,6 +14,7 @@ interface DirectChatWidgetProps {
   recipient: { id: string; handle: string }
   onClose: () => void
   classroomId: string
+  initialMessage?: string
 }
 
 export default function DirectChatWidget({
@@ -21,6 +22,7 @@ export default function DirectChatWidget({
   recipient,
   onClose,
   classroomId,
+  initialMessage,
 }: DirectChatWidgetProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState('')
@@ -41,14 +43,14 @@ export default function DirectChatWidget({
         {
           id: 'init',
           sender: 'other' as const,
-          text: `Hey! I saw your post in the ${recipient.handle.includes('Guru') ? 'subject thread' : 'classroom discussion'}. Do you want to discuss it or compare notes?`,
+          text: initialMessage || `Hey! I saw your post in the ${recipient.handle.includes('Guru') ? 'subject thread' : 'classroom discussion'}. Do you want to discuss it or compare notes?`,
           time: new Date().toISOString(),
         },
       ]
       setMessages(initial)
       localStorage.setItem(storageKey, JSON.stringify(initial))
     }
-  }, [storageKey, recipient.handle])
+  }, [storageKey, recipient.handle, initialMessage])
 
   // Scroll to bottom on message updates
   useEffect(() => {
