@@ -248,48 +248,55 @@ function ReplyInput({
 
   return (
     <div style={{ marginTop: 10 }}>
-      <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <textarea
-          value={text} onChange={e => setText(e.target.value)} rows={2} autoFocus
+          value={text} onChange={e => setText(e.target.value)} rows={1} autoFocus
           placeholder="Write a reply..."
           style={{
-            flex: 1, padding: '8px 12px', border: '2px solid #00595c',
-            fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', resize: 'none',
+            flex: 1, padding: '7px 12px', border: '2px solid #00595c',
+            fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', resize: 'none',
             background: '#fbf9f4', outline: 'none', color: '#1b1c19',
+            boxSizing: 'border-box', height: '36px',
           }}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <button type="submit" disabled={pending || !text.trim()} style={{
-            padding: '6px 14px', background: '#00595c', border: '2px solid #00595c',
-            color: '#fff', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-          }}>
-            {pending ? '…' : 'Reply'}
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} style={{
-            padding: '6px 14px', background: 'transparent', border: '2px solid #00595c',
-            color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center'
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>attach_file</span>
-            Files
-          </button>
-          <input
-            type="file"
-            multiple
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
-          <button type="button" onClick={onCancel} style={{
-            padding: '6px 14px', background: 'transparent', border: '2px solid #bec9c9',
-            color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-            fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-          }}>
-            Cancel
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach files"
+          style={{
+            padding: 0, background: 'transparent', border: '2px solid #00595c',
+            color: '#00595c', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxSizing: 'border-box', height: '36px', width: '36px', flexShrink: 0
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>attach_file</span>
+        </button>
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+        <button type="submit" disabled={pending || !text.trim()} style={{
+          padding: '0 12px', background: '#00595c', border: '2px solid #00595c',
+          color: '#fff', fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem',
+          fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+          boxSizing: 'border-box', height: '36px', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', whiteSpace: 'nowrap', flexShrink: 0
+        }}>
+          {pending ? '…' : 'Reply'}
+        </button>
+        <button type="button" onClick={onCancel} style={{
+          padding: '0 12px', background: 'transparent', border: '2px solid #bec9c9',
+          color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem',
+          fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+          boxSizing: 'border-box', height: '36px', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', whiteSpace: 'nowrap', flexShrink: 0
+        }}>
+          Cancel
+        </button>
       </form>
       {attachedFiles.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
@@ -1404,59 +1411,61 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       <div style={{ marginBottom: 24 }}>
         {(!isMainAuthorMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
           <div>
-            <form onSubmit={handlePostDirectComment} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <form onSubmit={handlePostDirectComment} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <textarea
                 value={directCommentText}
                 onChange={e => setDirectCommentText(e.target.value)}
                 placeholder="What's your answer or thought? Help your classmate..."
-                rows={3}
+                rows={1}
                 style={{
-                  flex: 1, padding: '12px 14px', border: '2.5px solid #00595c',
-                  background: '#fbf9f4', fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem',
-                  lineHeight: 1.5, color: '#1b1c19', resize: 'none', outline: 'none',
-                  boxShadow: '3px 3px 0 0 #00595c',
+                  flex: 1, padding: '9px 12px', border: '2px solid #00595c',
+                  background: '#fbf9f4', fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem',
+                  lineHeight: 1.4, color: '#1b1c19', resize: 'none', outline: 'none',
+                  boxShadow: '2px 2px 0 0 #00595c',
+                  boxSizing: 'border-box', height: '40px', borderRadius: '2px'
                 }}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <button
-                  type="submit"
-                  disabled={commentPending || !directCommentText.trim()}
-                  style={{
-                    padding: '12px 18px', background: '#fea619', border: '2.5px solid #00595c',
-                    color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
-                    fontWeight: 700, textTransform: 'uppercase', cursor: commentPending ? 'not-allowed' : 'pointer',
-                    boxShadow: '3px 3px 0 0 #00595c',
-                    opacity: commentPending ? 0.7 : 1,
-                    width: '100%', textAlign: 'center'
-                  }}
-                >
-                  {commentPending ? '…' : 'Comment'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => directFileInputRef.current?.click()}
-                  style={{
-                    padding: '8px 14px', background: '#f5f3ee', border: '2.5px solid #00595c',
-                    color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
-                    fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
-                    boxShadow: '3px 3px 0 0 #00595c',
-                    display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>attach_file</span>
-                  Attach
-                </button>
-                <input
-                  type="file"
-                  multiple
-                  ref={directFileInputRef}
-                  onChange={(e) => {
-                    const files = e.target.files
-                    if (files) setDirectAttachedFiles(prev => [...prev, ...Array.from(files)])
-                  }}
-                  style={{ display: 'none' }}
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => directFileInputRef.current?.click()}
+                title="Attach files"
+                style={{
+                  padding: 0, background: '#f5f3ee', border: '2px solid #00595c',
+                  color: '#00595c', cursor: 'pointer',
+                  boxShadow: '2px 2px 0 0 #00595c',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxSizing: 'border-box', height: '40px', width: '40px', flexShrink: 0,
+                  borderRadius: '2px'
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>attach_file</span>
+              </button>
+              <button
+                type="submit"
+                disabled={commentPending || !directCommentText.trim()}
+                style={{
+                  padding: '0 16px', background: '#fea619', border: '2px solid #00595c',
+                  color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
+                  fontWeight: 700, textTransform: 'uppercase', cursor: commentPending ? 'not-allowed' : 'pointer',
+                  boxShadow: '2px 2px 0 0 #00595c',
+                  opacity: commentPending ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxSizing: 'border-box', height: '40px', whiteSpace: 'nowrap', flexShrink: 0,
+                  borderRadius: '2px'
+                }}
+              >
+                {commentPending ? '…' : 'Comment'}
+              </button>
+              <input
+                type="file"
+                multiple
+                ref={directFileInputRef}
+                onChange={(e) => {
+                  const files = e.target.files
+                  if (files) setDirectAttachedFiles(prev => [...prev, ...Array.from(files)])
+                }}
+                style={{ display: 'none' }}
+              />
             </form>
             {directAttachedFiles.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, marginBottom: 4 }}>
