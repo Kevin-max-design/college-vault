@@ -1180,32 +1180,33 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
 
       {/* Main Doubt Highlight Card */}
       <div style={{
-        border: `3px solid ${targetPostNode.resolved ? '#bec9c9' : '#00595c'}`,
+        border: `1.5px solid ${targetPostNode.resolved ? '#bec9c9' : '#00595c'}`,
         background: targetPostNode.resolved ? '#f5f3ee' : '#fbf9f4',
-        padding: '24px 24px',
-        boxShadow: targetPostNode.resolved ? 'none' : '6px 6px 0 0 #00595c',
-        marginBottom: 28,
+        padding: '16px 20px',
+        boxShadow: targetPostNode.resolved ? 'none' : '3px 3px 0 0 #00595c',
+        marginBottom: 20,
         position: 'relative',
+        borderRadius: '2px',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: targetPostNode.resolved ? '#6e7979' : mainMeta.color }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15, color: targetPostNode.resolved ? '#6e7979' : mainMeta.color }}>
               {targetPostNode.resolved ? 'check_circle' : mainMeta.icon}
             </span>
-            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: targetPostNode.resolved ? '#6e7979' : mainMeta.color }}>
+            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: targetPostNode.resolved ? '#6e7979' : mainMeta.color }}>
               {targetPostNode.resolved ? 'Resolved' : mainMeta.label}
             </span>
           </div>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', color: '#6e7979' }}>{timeAgo(targetPostNode.created_at)}</span>
+          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem', color: '#6e7979' }}>{timeAgo(targetPostNode.created_at)}</span>
         </div>
 
         <h1 style={{
           fontFamily: 'var(--font-newsreader)',
-          fontSize: '1.45rem',
-          lineHeight: 1.5,
+          fontSize: '1.25rem',
+          lineHeight: 1.4,
           color: '#1b1c19',
           fontWeight: 600,
-          marginBottom: targetPostNode.attachments && targetPostNode.attachments.length > 0 ? 10 : 16,
+          marginBottom: targetPostNode.attachments && targetPostNode.attachments.length > 0 ? 10 : 14,
           whiteSpace: 'pre-wrap',
         }}>
           {targetPostNode.content}
@@ -1273,7 +1274,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1.5px solid #bec9c9', paddingTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid #e4e2dd', paddingTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 26, height: 26, borderRadius: '50%', background: isMainAuthorMe ? '#fea619' : '#0d7377',
