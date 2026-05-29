@@ -13,11 +13,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/home',       label: 'Home',    icon: 'home'          },
-  { href: '/classrooms', label: 'Class',   icon: 'school'        },
-  { href: '/bulletin',   label: 'Social',  icon: 'people'        },
-  { href: '/vault',      label: 'Market',  icon: 'storefront'    },
-  { href: '/profile',    label: 'Profile', icon: 'person'        },
+  { href: '/home', label: 'Home', icon: 'home' },
+  { href: '/classrooms', label: 'Class', icon: 'school' },
+  { href: '/bulletin', label: 'Social', icon: 'people' },
+  { href: '/vault', label: 'Market', icon: 'storefront' },
+  { href: '/profile', label: 'Profile', icon: 'person' },
 ]
 
 /* ── Notification Model ─────────────────────────────────────────── */
@@ -36,46 +36,46 @@ interface NotificationItem {
 
 /* ── Palette ────────────────────────────────────────────────────── */
 const C = {
-  bg:         '#F4EFE6',
-  surface:    '#FDFAF5',
-  border:     '#E2D9C8',
-  olive:      '#2D4A3E',
+  bg: '#F4EFE6',
+  surface: '#FDFAF5',
+  border: '#E2D9C8',
+  olive: '#2D4A3E',
   oliveHover: '#3D6B5A',
-  text:       '#1A1A1A',
-  textMuted:  '#7A7A7A',
-  white:      '#FFFFFF',
-  activeTabBg:'#EAE4D8',
+  text: '#1A1A1A',
+  textMuted: '#7A7A7A',
+  white: '#FFFFFF',
+  activeTabBg: '#EAE4D8',
 }
 
 /* ── Category → Icon / Color mapping ──────────────────────────── */
 const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
-  principal_announcement: { icon: 'campaign',      color: '#ba1a1a', bg: '#fdf2f2' },
-  hod_notice:            { icon: 'shield',        color: '#6a1b9a', bg: '#f3e5f5' },
-  faculty_announcement:  { icon: 'school',        color: '#00595c', bg: '#e8f5f5' },
-  deadline:              { icon: 'schedule',       color: '#e65100', bg: '#fff3e0' },
-  market_message:        { icon: 'mail',           color: '#fea619', bg: '#fffdf5' },
-  listing_request:       { icon: 'shopping_bag',   color: '#855300', bg: '#fef5e7' },
-  classroom_reply:       { icon: 'forum',          color: '#0d7377', bg: '#eafaf9' },
-  material_upload:       { icon: 'upload_file',    color: '#2e7d32', bg: '#e8f5e9' },
-  doubt_resolved:        { icon: 'check_circle',   color: '#1b5e20', bg: '#e8f5e9' },
-  general:               { icon: 'notifications',  color: '#3e4949', bg: '#f0eee9' },
+  principal_announcement: { icon: 'campaign', color: '#ba1a1a', bg: '#fdf2f2' },
+  hod_notice: { icon: 'shield', color: '#6a1b9a', bg: '#f3e5f5' },
+  faculty_announcement: { icon: 'school', color: '#00595c', bg: '#e8f5f5' },
+  deadline: { icon: 'schedule', color: '#e65100', bg: '#fff3e0' },
+  market_message: { icon: 'mail', color: '#fea619', bg: '#fffdf5' },
+  listing_request: { icon: 'shopping_bag', color: '#855300', bg: '#fef5e7' },
+  classroom_reply: { icon: 'forum', color: '#0d7377', bg: '#eafaf9' },
+  material_upload: { icon: 'upload_file', color: '#2e7d32', bg: '#e8f5e9' },
+  doubt_resolved: { icon: 'check_circle', color: '#1b5e20', bg: '#e8f5e9' },
+  general: { icon: 'notifications', color: '#3e4949', bg: '#f0eee9' },
 }
 
 /* Fallback map for old type-based notifications that don't have a category */
 const TYPE_TO_CATEGORY: Record<string, string> = {
-  message:            'market_message',
-  request:            'listing_request',
-  resolved:           'doubt_resolved',
-  classroom_reply:    'classroom_reply',
-  classroom_doubt:    'classroom_reply',
-  announcement:       'faculty_announcement',
-  material:           'material_upload',
-  notice:             'general',
-  classroom_post:     'classroom_reply',
-  comment_reply:      'classroom_reply',
-  project_update:     'general',
+  message: 'market_message',
+  request: 'listing_request',
+  resolved: 'doubt_resolved',
+  classroom_reply: 'classroom_reply',
+  classroom_doubt: 'classroom_reply',
+  announcement: 'faculty_announcement',
+  material: 'material_upload',
+  notice: 'general',
+  classroom_post: 'classroom_reply',
+  comment_reply: 'classroom_reply',
+  project_update: 'general',
   admin_announcement: 'principal_announcement',
-  social_update:      'general',
+  social_update: 'general',
 }
 
 function getCategoryIcon(item: NotificationItem) {
@@ -86,20 +86,20 @@ function getCategoryIcon(item: NotificationItem) {
 /* ── Priority accent colors ───────────────────────────────────── */
 const PRIORITY_STYLES: Record<string, { border: string; label: string; labelColor: string; labelBg: string }> = {
   urgent: { border: '#d32f2f', label: 'URGENT', labelColor: '#fff', labelBg: '#d32f2f' },
-  high:   { border: '#f57c00', label: 'HIGH',   labelColor: '#fff', labelBg: '#f57c00' },
-  normal: { border: 'transparent', label: '',   labelColor: '', labelBg: '' },
-  low:    { border: 'transparent', label: '',   labelColor: '', labelBg: '' },
+  high: { border: '#f57c00', label: 'HIGH', labelColor: '#fff', labelBg: '#f57c00' },
+  normal: { border: 'transparent', label: '', labelColor: '', labelBg: '' },
+  low: { border: 'transparent', label: '', labelColor: '', labelBg: '' },
 }
 
 /* ── Notification filter tabs ─────────────────────────────────── */
 type FilterTab = 'all' | 'important' | 'academic' | 'market' | 'classroom'
 
 const FILTER_TABS: { key: FilterTab; label: string; icon: string }[] = [
-  { key: 'all',        label: 'All',        icon: 'list' },
-  { key: 'important',  label: 'Important',  icon: 'priority_high' },
-  { key: 'academic',   label: 'Academic',   icon: 'school' },
-  { key: 'market',     label: 'Market',     icon: 'storefront' },
-  { key: 'classroom',  label: 'Classroom',  icon: 'forum' },
+  { key: 'all', label: 'All', icon: 'list' },
+  { key: 'important', label: 'Important', icon: 'priority_high' },
+  { key: 'academic', label: 'Academic', icon: 'school' },
+  { key: 'market', label: 'Market', icon: 'storefront' },
+  { key: 'classroom', label: 'Classroom', icon: 'forum' },
 ]
 
 const ACADEMIC_CATEGORIES = new Set(['principal_announcement', 'hod_notice', 'faculty_announcement', 'deadline', 'material_upload'])
@@ -231,7 +231,7 @@ export default function AppShell({
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [toast, setToast] = useState<NotificationItem | null>(null)
-  
+
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Web Push Subscription States
@@ -326,7 +326,7 @@ export default function AppShell({
     if (typeof window !== 'undefined') {
       const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
       setIsIOS(ios);
-      
+
       const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
       setIsStandalone(!!standalone);
 
@@ -594,7 +594,7 @@ export default function AppShell({
 
         {/* Right: bell + avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
-          
+
           {/* Theme Toggle Button */}
           <button
             aria-label="Toggle Theme"
@@ -630,7 +630,7 @@ export default function AppShell({
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
-            
+
             {unreadCount > 0 && (
               <span style={{
                 position: 'absolute', top: 3, right: 3,
@@ -727,7 +727,7 @@ export default function AppShell({
 
               {/* Panel Body */}
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                
+
                 {/* ── Web Push PWA Settings Panel ────────────────── */}
                 {pushSupported && (
                   <>
@@ -939,7 +939,7 @@ export default function AppShell({
               to { opacity: 1; transform: translateX(0); }
             }
           `}</style>
-          
+
           {(() => {
             const toastCfg = getCategoryIcon(toast)
             const toastPri = PRIORITY_STYLES[toast.priority ?? 'normal'] ?? PRIORITY_STYLES.normal

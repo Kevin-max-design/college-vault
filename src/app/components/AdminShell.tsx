@@ -78,7 +78,7 @@ export default function AdminShell({ children, userRole, userName, department }:
       {/* Nav items */}
       <nav style={{ flex: 1, padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {navItems.map(item => {
-          const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+          const isActive = pathname ? (pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))) : false
           return (
             <Link key={item.href} href={item.href} style={{ textDecoration: 'none', margin: '0 12px' }}>
               <div style={{
