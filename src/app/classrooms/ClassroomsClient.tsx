@@ -58,7 +58,6 @@ interface Props {
   departmentCode?: string
 }
 
-/* ── Anonymous Doubt Box ────────────────────────────────────────── */
 function AnonymousDoubt() {
   const [text, setText] = useState('')
   const [sent, setSent] = useState(false)
@@ -70,30 +69,33 @@ function AnonymousDoubt() {
   }
 
   return (
-    <div className="bg-surface border-2 border-outline-variant p-4 mb-6 shadow-[4px_4px_0_0_#bec9c9]">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">🌊</span>
-        <h3 className="font-newsreader font-bold text-lg text-primary leading-none">
-          Anonymous Doubt
-        </h3>
+    <div className="bg-surface border border-outline-variant p-3.5 mb-6 rounded shadow-[2px_2px_0_0_#bec9c9]">
+      <div className="flex items-center justify-between gap-3 mb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🌊</span>
+          <h3 className="font-newsreader font-bold text-base text-primary leading-none">
+            Anonymous Doubt
+          </h3>
+        </div>
+        <span className="font-jakarta text-[10px] text-outline opacity-80 hidden sm:inline">
+          Cast into the void anonymously
+        </span>
       </div>
-      <p className="font-jakarta text-xs text-outline leading-relaxed mb-3">
-        Stuck on a concept? Drop your question into the void. Professors and peers
-        can answer without knowing who asked. Safe, brutal, effective.
-      </p>
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="E.g., I still don't understand how Dijkstra's algorithm handles negative weights..."
-        rows={3}
-        className="cv-input resize-none h-auto py-3 text-sm leading-relaxed placeholder:text-outline-variant"
-      />
-      <button
-        onClick={handleSend}
-        className="mt-3 bg-primary text-on-primary font-jakarta font-bold text-xs tracking-widest uppercase px-5 py-2.5 border-2 border-primary shadow-[4px_4px_0_0_#00595c] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_0_#00595c] active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn"
-      >
-        {sent ? '✓ Cast!' : 'Cast Into Void'}
-      </button>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Ask a quick anonymous doubt..."
+          className="flex-1 cv-input py-2 px-3 text-xs leading-normal placeholder:text-outline-variant rounded"
+        />
+        <button
+          onClick={handleSend}
+          className="bg-primary text-on-primary font-jakarta font-bold text-[10px] tracking-wider uppercase px-4 py-2 border border-primary shadow-[2px_2px_0_0_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0_0_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn rounded shrink-0"
+        >
+          {sent ? '✓ Cast!' : 'Cast'}
+        </button>
+      </div>
     </div>
   )
 }
