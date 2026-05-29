@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
 
@@ -41,7 +42,7 @@ export default async function HomePage() {
           </h2>
           <p className="font-jakarta text-sm text-outline flex items-center gap-2">
             <span className="material-symbols-outlined text-base">school</span>
-            {profile?.department ? `${profile.department} (Yr ${profile.year_of_study})` : 'State University'}
+            {profile?.department ? `${profile.department} (Yr ${profile.year_of_study})` : 'RGMCET Student'}
           </p>
         </section>
 
@@ -59,112 +60,96 @@ export default async function HomePage() {
                 Reminders &amp; Messages
               </h3>
               <p className="font-jakarta text-sm text-on-secondary-container leading-snug">
-                3 new messages about your Calculus textbook. Buyer wants to meet at the library.
+                Doubt resolved in Classrooms, 1 new message in Market about your textbook listing, and new Principal notice posted in Social.
               </p>
             </div>
           </div>
         </section>
 
-        {/* ── Event Banner ────────────────────────────────────── */}
+        {/* ── Core Feature 1: Classrooms ──────────────────────── */}
         <section className="bg-error-container text-on-error-container border-2 border-primary p-6 shadow-[4px_4px_0px_0px_#00595c] relative overflow-hidden flex flex-col gap-4">
           <div className="relative z-10 flex flex-col gap-2">
             <div className="bg-surface w-fit px-3 py-1 border border-primary shadow-[2px_2px_0px_0px_#00595c] font-jakarta font-black text-[0.65rem] uppercase tracking-widest text-primary">
-              Campus Event
+              ACADEMIC HUB
             </div>
             <h3 className="font-newsreader font-black text-4xl text-primary leading-tight">
-              Graduating Senior Dump
+              Classrooms &amp; Doubts
             </h3>
-            <p className="font-jakarta text-sm font-bold text-on-surface-variant max-w-[80%] leading-snug">
-              Score cheap tech, furniture, and books before they move out this Friday.
+            <p className="font-jakarta text-sm font-bold text-on-surface-variant max-w-[85%] leading-snug">
+              Ask doubts, share lecture materials, download study PDFs, and collaborate on syllabus topics with classmates and faculty.
             </p>
           </div>
           <div className="relative z-10">
-            <button className="bg-surface text-primary border-2 border-primary px-6 py-2 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn">
-              View Listings
-            </button>
+            <Link href="/classrooms">
+              <button className="bg-surface text-primary border-2 border-primary px-6 py-2.5 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn cursor-pointer">
+                Enter Classrooms
+              </button>
+            </Link>
           </div>
           {/* Decor */}
-          <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-secondary-container rounded-full border-4 border-primary opacity-40" />
-          <span className="material-symbols-outlined absolute top-4 right-4 text-6xl text-primary opacity-20 transform rotate-12">
-            recycling
+          <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-secondary-container rounded-full border-4 border-primary opacity-40 pointer-events-none" />
+          <span className="material-symbols-outlined absolute top-4 right-4 text-6xl text-primary opacity-20 transform rotate-12 pointer-events-none">
+            school
           </span>
         </section>
 
-        {/* ── Trending ────────────────────────────────────────── */}
+        {/* ── Pillars Grid: Market & Social ────────────────────── */}
         <section className="flex flex-col gap-6">
           <div className="border-b-4 border-primary pb-2 flex justify-between items-end">
             <h3 className="font-newsreader font-black text-3xl text-primary leading-tight">
-              Trending in <br /> Mechanical Eng.
+              Explore Campus Hubs
             </h3>
-            <span className="material-symbols-outlined text-primary text-4xl">trending_up</span>
+            <span className="material-symbols-outlined text-primary text-4xl">hub</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Card 1 */}
-            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card cursor-pointer group">
-              <div className="h-32 bg-surface-variant border-b-2 border-primary relative overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt="Engineering Textbook"
-                  className="w-full h-full object-cover mix-blend-multiply opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9ov3cyr9E0xYfdwDRbmPgCtBKQPgSNXB3d6x3D1r_wJGeJxYNxjlp6B6TNZJMkk-ppXx6w_KFKZfhgb3mrpacfhGGwunMPeug3JiPoEt6-u6SVKkCHjhsCm91muquy9C5JoKnNhSehCdarIep-LSBcQU4PAxjWUzo7KYMKTGavCiLr7UgmuiKNIufDoMxaOfTwhGdQyaXyk8ASL46s5agjMDm2kaJ6e3JSODMyloyCyvQ3eqhPXaT-epxzzqJ3ZNHla2StxgqDig"
-                />
-                <div className="absolute top-2 left-2 bg-surface border border-primary px-2 py-1 flex items-center gap-1 shadow-[2px_2px_0px_0px_#00595c]">
-                  <span
-                    className="material-symbols-outlined text-[14px] text-primary"
-                    style={{ fontVariationSettings: '"FILL" 1' }}
-                  >
-                    verified
-                  </span>
-                  <span className="font-jakarta font-black text-[0.6rem] tracking-widest uppercase text-primary">
-                    Trust 98
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Market Card */}
+            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col justify-between hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card bg-surface p-5 gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-xl">storefront</span>
+                  <span className="font-jakarta font-black text-[0.65rem] tracking-widest uppercase text-outline">
+                    Marketplace
                   </span>
                 </div>
-              </div>
-              <div className="p-3 flex flex-col gap-2 flex-grow justify-between bg-surface">
-                <h4 className="font-jakarta font-bold text-sm text-on-surface line-clamp-2 leading-tight">
-                  Engineering Mechanics: Dynamics (14th Ed)
+                <h4 className="font-newsreader font-black text-2xl text-primary leading-tight">
+                  P2P Campus Market
                 </h4>
-                <div className="flex justify-between items-center mt-2">
-                  <p className="font-newsreader font-black text-base text-primary bg-secondary-container px-2 border border-primary shadow-[2px_2px_0px_0px_#00595c]">
-                    $45
-                  </p>
-                  <span className="material-symbols-outlined text-outline-variant">bookmark_border</span>
-                </div>
+                <p className="font-jakarta text-xs text-outline leading-relaxed">
+                  Buy, rent, or sell textbooks, scientific calculators, lab coats, and college gear directly to and from your fellow RGMCET peers.
+                </p>
+              </div>
+              <div>
+                <Link href="/vault">
+                  <button className="bg-primary text-on-primary font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[3px_3px_0px_0px_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn cursor-pointer">
+                    Explore Market
+                  </button>
+                </Link>
               </div>
             </article>
 
-            {/* Card 2 */}
-            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card cursor-pointer group">
-              <div className="h-32 bg-surface-variant border-b-2 border-primary relative overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt="Scientific Tools"
-                  className="w-full h-full object-cover mix-blend-multiply opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-JNXfjH2zGXjEhomhOsgc5NtmiFLRhLWXn9xKn5buv8cSWsiR4y3_cpWH8oZc0P3kkyQgsQ0xqO5ATuYEwPPlz5N54dZ5fEhJG1krB_tNgbgYCiohnuHVrR4Dxb-koEnITCCnohg3WREB2U84BteCrhwtv_LubrDdVlaBctkxKxhmOgyNdX850DDu_ieXazqFODVmba9c4cDWBfGDP5f9e243DkzcIn64fRr7_G0Ey1GHIilcLFcoqggbwEm9m8fDTXPrcufdar0"
-                />
-                <div className="absolute top-2 left-2 bg-surface border border-primary px-2 py-1 flex items-center gap-1 shadow-[2px_2px_0px_0px_#00595c]">
-                  <span
-                    className="material-symbols-outlined text-[14px] text-primary"
-                    style={{ fontVariationSettings: '"FILL" 1' }}
-                  >
-                    verified
-                  </span>
-                  <span className="font-jakarta font-black text-[0.6rem] tracking-widest uppercase text-primary">
-                    Trust 85
+            {/* Social Card */}
+            <article className="bg-surface border-2 border-primary shadow-[4px_4px_0px_0px_#00595c] flex flex-col justify-between hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#00595c] cv-transition-card bg-surface p-5 gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-xl">people</span>
+                  <span className="font-jakarta font-black text-[0.65rem] tracking-widest uppercase text-outline">
+                    Bulletin Board
                   </span>
                 </div>
-              </div>
-              <div className="p-3 flex flex-col gap-2 flex-grow justify-between bg-surface">
-                <h4 className="font-jakarta font-bold text-sm text-on-surface line-clamp-2 leading-tight">
-                  Precision Caliper Set &amp; Lab Goggles
+                <h4 className="font-newsreader font-black text-2xl text-primary leading-tight">
+                  Social &amp; Notices
                 </h4>
-                <div className="flex justify-between items-center mt-2">
-                  <p className="font-newsreader font-black text-base text-primary bg-secondary-container px-2 border border-primary shadow-[2px_2px_0px_0px_#00595c]">
-                    $15
-                  </p>
-                  <span className="material-symbols-outlined text-outline-variant">bookmark_border</span>
-                </div>
+                <p className="font-jakarta text-xs text-outline leading-relaxed">
+                  Stay updated with official Principal notices, HOD department updates, faculty announcements, and student bulletin boards.
+                </p>
+              </div>
+              <div>
+                <Link href="/bulletin">
+                  <button className="bg-primary text-on-primary font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-4 py-2 border-2 border-primary shadow-[3px_3px_0px_0px_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn cursor-pointer">
+                    Open Social
+                  </button>
+                </Link>
               </div>
             </article>
           </div>
