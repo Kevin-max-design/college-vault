@@ -38,50 +38,54 @@ export default function AdminVaultPage() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['all', 'available', 'sold', 'rented'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)} style={{
-            padding: '5px 14px', borderRadius: 9999, border: '2px solid', cursor: 'pointer',
-            borderColor: filterStatus === s ? '#00595c' : '#bec9c9',
-            background: filterStatus === s ? '#fea619' : 'transparent',
-            color: filterStatus === s ? '#684000' : '#6e7979',
+            padding: '6px 14px', borderRadius: '20px', border: '1px solid', cursor: 'pointer',
+            borderColor: filterStatus === s ? '#00595c' : '#cbd5e1',
+            background: filterStatus === s ? '#fea619' : '#ffffff',
+            color: filterStatus === s ? '#684000' : '#64748b',
             fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
             letterSpacing: '0.07em', textTransform: 'uppercase',
+            transition: 'all 0.15s',
           }}>{s}</button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#6e7979', fontFamily: 'var(--font-jakarta)' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#64748b', fontFamily: 'var(--font-jakarta)' }}>Loading…</div>
       ) : (
-        <div style={{ border: '2px solid #bec9c9', overflow: 'hidden' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
           {filtered.map((l, i) => (
             <div key={l.id} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 16px', gap: 12,
-              background: i % 2 === 0 ? '#fbf9f4' : '#f5f3ee',
-              borderBottom: '1px solid #e4e2dd',
+              padding: '16px 20px', gap: 12,
+              background: i % 2 === 0 ? '#ffffff' : '#f8fafc',
+              borderBottom: i < filtered.length - 1 ? '1px solid #e2e8f0' : 'none',
             }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.05rem', color: '#1b1c19', marginBottom: 3 }}>{l.title}</div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.05rem', color: '#0f172a', marginBottom: 3 }}>{l.title}</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: '#00595c' }}>${l.price.toFixed(2)}</span>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#6e7979' }}>{l.category} · {l.type}</span>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#6e7979' }}>by {l.seller?.full_name ?? '—'}</span>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: STATUS_COLOR[l.status] ?? '#6e7979' }}>{l.status}</span>
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#64748b' }}>{l.category} · {l.type}</span>
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#64748b' }}>by {l.seller?.full_name ?? '—'}</span>
+                  <span style={{
+                    fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
+                    padding: '2px 8px', borderRadius: '20px', background: l.status === 'available' ? '#e0f5f6' : '#f1f5f9', color: STATUS_COLOR[l.status] ?? '#64748b'
+                  }}>{l.status}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {l.status === 'available' && (
-                  <button onClick={() => handleMarkSold(l.id)} style={{ padding: '5px 10px', border: '1.5px solid #855300', background: 'transparent', color: '#855300', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+                  <button onClick={() => handleMarkSold(l.id)} style={{ padding: '6px 12px', border: '1px solid #d97706', borderRadius: '6px', background: 'transparent', color: '#d97706', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.15s' }}>
                     Mark Sold
                   </button>
                 )}
-                <button onClick={() => handleDelete(l.id)} disabled={deleting === l.id} style={{ padding: '5px 10px', border: '1.5px solid #ba1a1a', background: 'transparent', color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+                <button onClick={() => handleDelete(l.id)} disabled={deleting === l.id} style={{ padding: '6px 12px', border: '1px solid #fee2e2', borderRadius: '6px', background: 'transparent', color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.15s' }}>
                   {deleting === l.id ? '…' : 'Remove'}
                 </button>
               </div>
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: '32px 20px', textAlign: 'center', color: '#6e7979', fontFamily: 'var(--font-jakarta)' }}>No listings found.</div>
+            <div style={{ padding: '32px 20px', textAlign: 'center', color: '#64748b', fontFamily: 'var(--font-jakarta)' }}>No listings found.</div>
           )}
         </div>
       )}

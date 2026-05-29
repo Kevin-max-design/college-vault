@@ -53,10 +53,15 @@ export default function AdminClassroomsPage() {
         <h1 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 800, fontSize: '2rem', color: '#00595c' }}>Classrooms</h1>
         <button onClick={() => setShowForm(v => !v)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-          background: '#fea619', border: '2px solid #855300', boxShadow: '3px 3px 0 0 #855300',
+          background: '#fea619', border: 'none', borderRadius: '8px',
           fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', fontWeight: 700,
           textTransform: 'uppercase', cursor: 'pointer', color: '#684000',
-        }}>
+          boxShadow: '0 4px 6px -1px rgba(254, 166, 25, 0.2), 0 2px 4px -1px rgba(254, 166, 25, 0.1)',
+          transition: 'opacity 0.15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+        >
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
           New Classroom
         </button>
@@ -64,26 +69,26 @@ export default function AdminClassroomsPage() {
 
       {/* Create Form */}
       {showForm && (
-        <form onSubmit={handleCreate} style={{ background: '#fbf9f4', border: '2px solid #00595c', padding: 24, marginBottom: 28, boxShadow: '4px 4px 0 0 #00595c' }}>
+        <form onSubmit={handleCreate} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: 24, marginBottom: 28, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
           <h3 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.3rem', color: '#00595c', marginBottom: 16 }}>Create New Classroom</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#00595c', display: 'block', marginBottom: 6 }}>Name</label>
               <input required type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', border: '2px solid #00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', background: '#fbf9f4', outline: 'none' }} />
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', background: '#ffffff', outline: 'none' }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#00595c', display: 'block', marginBottom: 6 }}>Year</label>
                 <select value={form.year} onChange={e => setForm(f => ({ ...f, year: +e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', border: '2px solid #00595c', background: '#fbf9f4', fontFamily: 'var(--font-jakarta)' }}>
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#ffffff', fontFamily: 'var(--font-jakarta)', outline: 'none' }}>
                   {YEARS.map(y => <option key={y} value={y}>Year {y}</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#00595c', display: 'block', marginBottom: 6 }}>Type</label>
                 <select value={form.subject_type} onChange={e => setForm(f => ({ ...f, subject_type: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', border: '2px solid #00595c', background: '#fbf9f4', fontFamily: 'var(--font-jakarta)' }}>
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#ffffff', fontFamily: 'var(--font-jakarta)', outline: 'none' }}>
                   {SUBJECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -92,14 +97,14 @@ export default function AdminClassroomsPage() {
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: '#00595c', display: 'block', marginBottom: 6 }}>Description</label>
             <textarea rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              style={{ width: '100%', padding: '9px 12px', border: '2px solid #00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', background: '#fbf9f4', outline: 'none', resize: 'none' }} />
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', background: '#ffffff', outline: 'none', resize: 'none' }} />
           </div>
           {error && <p style={{ color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', marginBottom: 12 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="submit" disabled={submitting} style={{ padding: '10px 20px', background: '#00595c', border: '2px solid #00595c', color: '#fff', fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button type="submit" disabled={submitting} style={{ padding: '10px 20px', background: '#00595c', border: 'none', borderRadius: '6px', color: '#fff', fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', cursor: 'pointer' }}>
               {submitting ? 'Creating…' : 'Create'}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} style={{ padding: '10px 20px', background: 'transparent', border: '2px solid #bec9c9', color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button type="button" onClick={() => setShowForm(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#64748b', fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', cursor: 'pointer' }}>
               Cancel
             </button>
           </div>
@@ -107,28 +112,28 @@ export default function AdminClassroomsPage() {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#6e7979', fontFamily: 'var(--font-jakarta)' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#64748b', fontFamily: 'var(--font-jakarta)' }}>Loading…</div>
       ) : (
         byYear.map(({ year, rooms }) => (
           <div key={year} style={{ marginBottom: 32 }}>
-            <h2 style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6e7979', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: '#00595c', color: '#fff', padding: '2px 8px' }}>Year {year}</span>
+            <h2 style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: '#00595c', color: '#fff', padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem' }}>Year {year}</span>
               <span>{rooms.length} classroom{rooms.length !== 1 ? 's' : ''}</span>
             </h2>
             {rooms.length === 0 ? (
-              <div style={{ padding: '16px 20px', background: '#f0eee9', border: '1.5px dashed #bec9c9', color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem' }}>No classrooms for Year {year} yet.</div>
+              <div style={{ padding: '20px 24px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem' }}>No classrooms for Year {year} yet.</div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
                 {rooms.map(c => (
-                  <div key={c.id} style={{ background: '#fbf9f4', border: '2px solid #00595c', padding: '16px 18px', boxShadow: '3px 3px 0 0 #bec9c9' }}>
+                  <div key={c.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px 20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', color: '#6e7979' }}>{c.subject_type}</span>
-                      <button onClick={() => handleDelete(c.id)} disabled={deleting === c.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ba1a1a' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                      <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '20px' }}>{c.subject_type}</span>
+                      <button onClick={() => handleDelete(c.id)} disabled={deleting === c.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ba1a1a', padding: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
                       </button>
                     </div>
-                    <div style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.1rem', color: '#1b1c19', marginBottom: 6 }}>{c.name}</div>
-                    <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#6e7979', lineHeight: 1.5 }}>{c.description}</p>
+                    <div style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.1rem', color: '#0f172a', marginBottom: 6 }}>{c.name}</div>
+                    <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5 }}>{c.description}</p>
                   </div>
                 ))}
               </div>

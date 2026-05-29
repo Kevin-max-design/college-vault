@@ -6,14 +6,15 @@ import Link from 'next/link'
 function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
   return (
     <div style={{
-      background: '#fbf9f4', border: `2px solid ${color}`,
-      padding: '20px 22px', boxShadow: `4px 4px 0 0 ${color}`,
+      background: '#ffffff', border: '1px solid #e2e8f0',
+      borderRadius: '12px', padding: '20px 22px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 20, color }}>{icon}</span>
-        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6e7979' }}>{label}</span>
+        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>{label}</span>
       </div>
-      <div style={{ fontFamily: 'var(--font-newsreader)', fontSize: '2.8rem', fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontFamily: 'var(--font-newsreader)', fontSize: '2.8rem', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{value}</div>
     </div>
   )
 }
@@ -55,7 +56,7 @@ export default async function AdminDashboard() {
   return (
     <div>
       <div style={{ marginBottom: 32 }}>
-        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6e7979' }}>
+        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#64748b' }}>
           {dept} Department
         </span>
         <h1 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 800, fontSize: '2.5rem', color: '#00595c', lineHeight: 1.1, marginTop: 4 }}>
@@ -86,10 +87,22 @@ export default async function AdminDashboard() {
             <Link key={a.href} href={a.href} style={{ textDecoration: 'none' }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
-                background: '#fbf9f4', border: '2px solid #00595c', boxShadow: '3px 3px 0 0 #00595c',
-                fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', fontWeight: 700, color: '#00595c',
-                cursor: 'pointer', transition: 'transform 0.1s',
-              }}>
+                background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', fontWeight: 700, color: '#334155',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#00595c';
+                  e.currentTarget.style.background = '#f0faf6';
+                  e.currentTarget.style.color = '#00595c';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.background = '#ffffff';
+                  e.currentTarget.style.color = '#334155';
+                }}
+              >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{a.icon}</span>
                 {a.label}
               </div>
@@ -104,28 +117,28 @@ export default async function AdminDashboard() {
           Recent Signups — {dept}
         </h2>
         {recentUsers.length === 0 ? (
-          <div style={{ padding: 24, background: '#f0eee9', textAlign: 'center', color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem' }}>
+          <div style={{ padding: 24, background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b', fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem' }}>
             No users yet in this department.
           </div>
         ) : (
-          <div style={{ border: '2px solid #bec9c9', overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
             {recentUsers.map((u: any, i: number) => (
               <div key={u.id} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 16px', background: i % 2 === 0 ? '#fbf9f4' : '#f5f3ee',
-                borderBottom: i < recentUsers.length - 1 ? '1px solid #e4e2dd' : 'none',
+                padding: '14px 20px', background: i % 2 === 0 ? '#ffffff' : '#f8fafc',
+                borderBottom: i < recentUsers.length - 1 ? '1px solid #e2e8f0' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0d7377', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#a2f5f9', fontSize: '0.75rem', fontWeight: 700 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e2f2f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#00595c', fontSize: '0.75rem', fontWeight: 700 }}>
                       {u.full_name?.split(' ').slice(0, 2).map((n: string) => n[0]).join('') || '?'}
                     </span>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 600, fontSize: '0.875rem', color: '#1b1c19' }}>{u.full_name}</span>
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{u.full_name}</span>
                 </div>
                 <span style={{
                   fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                  padding: '3px 8px', background: u.role === 'faculty' ? '#e8f5f5' : '#f0eee9', color: '#00595c', border: '1.5px solid #bec9c9',
+                  padding: '4px 10px', background: u.role === 'faculty' ? '#e2f2f3' : '#f1f5f9', color: '#334155', borderRadius: '20px',
                 }}>
                   {u.role}
                 </span>
