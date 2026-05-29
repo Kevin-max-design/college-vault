@@ -324,8 +324,9 @@ function ThreadNode({
 }) {
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
-  const meta = TYPE_META[post.type] ?? TYPE_META.thread
-  const isDoubt = post.type === 'doubt'
+  const isMaterial = post.type === 'material' || (post.attachments && post.attachments.length > 0)
+  const meta = isMaterial ? TYPE_META.material : (TYPE_META[post.type] ?? TYPE_META.thread)
+  const isDoubt = post.type === 'doubt' && !isMaterial
   const hasReplies = (post.replies?.length ?? 0) > 0
 
   const rawAuthorName = post.author?.full_name ?? 'Anonymous'
@@ -899,7 +900,8 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
   }
 
   // Format the target post's author handles and score
-  const mainMeta = TYPE_META[targetPostNode.type] ?? TYPE_META.thread
+  const isMainMaterial = targetPostNode.type === 'material' || (targetPostNode.attachments && targetPostNode.attachments.length > 0)
+  const mainMeta = isMainMaterial ? TYPE_META.material : (TYPE_META[targetPostNode.type] ?? TYPE_META.thread)
   const rawMainAuthor = targetPostNode.author?.full_name ?? 'Anonymous'
   const mainAuthorId = targetPostNode.author?.id ?? 'mock-author'
   

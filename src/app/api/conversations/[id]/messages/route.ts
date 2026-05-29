@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
+import { createNotification } from "@/lib/notifications";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -121,16 +122,14 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
 
   // 4. Send persistent in-app notification to receiver
   try {
-    await supabase
-      .from('user_notifications')
-      .insert({
-        user_id: receiverId,
-        type: 'message',
-        title: 'New Personal Message',
-        body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
-        link: '/vault',
-        read: false
-      });
+    await createNotification({
+      userId: receiverId,
+      type: 'message',
+      title: 'New Personal Message',
+      body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
+      link: '/vault',
+      actorId: userId
+    });
   } catch (err) {
     console.error('Failed to create in-app notification:', err);
   }

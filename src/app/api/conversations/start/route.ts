@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
+import { createNotification } from "@/lib/notifications";
 
 /**
  * POST /api/conversations/start
@@ -93,16 +94,14 @@ export async function POST(req: NextRequest) {
 
   // Notify the seller about the new conversation/message
   try {
-    await supabase
-      .from('user_notifications')
-      .insert({
-        user_id: seller_id,
-        type: 'message',
-        title: 'New Personal Message',
-        body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
-        link: '/vault',
-        read: false
-      });
+    await createNotification({
+      userId: seller_id,
+      type: 'message',
+      title: 'New Personal Message',
+      body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
+      link: '/vault',
+      actorId: buyer_id
+    });
   } catch (err) {
     console.error('Failed to create in-app notification:', err);
   }

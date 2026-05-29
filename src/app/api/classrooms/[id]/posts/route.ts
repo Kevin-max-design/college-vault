@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
+import { createNotification } from "@/lib/notifications";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -88,11 +89,23 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   const body = await req.json();
   const { content, type, attachments, parent_id } = body;
 
-  if (!content || !type) {
+  if (!content) {
     return NextResponse.json(
-      { error: "content and type are required." },
+      { error: "content is required." },
       { status: 400 }
     );
+  }
+
+  // 1. Auto-classify type if missing or default to classification rules
+  let finalType = type;
+  const hasFiles = attachments && Array.isArray(attachments) && attachments.length > 0;
+
+  if (!finalType) {
+    if (hasFiles) {
+      finalType = "material";
+    } else {
+      finalType = "doubt";
+    }
   }
 
   // TODO: Migration Plan — Rename database post_type enum 'thread' -> 'reply'.
@@ -101,23 +114,27 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   // we should completely search-and-replace 'thread' with 'reply' throughout the codebase.
   
   // Convert thread to doubt for backward compatibility (only for root posts)
-  let finalType = type;
   if (!parent_id && finalType === "thread") {
     finalType = "doubt";
   }
 
+  // Auto-classify as material if attachments exist and not manually set to doubt
+  if (!parent_id && hasFiles && finalType !== "doubt") {
+    finalType = "material";
+  }
+
   // Role-based type restriction
-  const studentAllowed = ["doubt", "thread"];
+  const studentAllowed = ["doubt", "thread", "material"];
   if (result.user.role === "student") {
     if (!studentAllowed.includes(finalType)) {
       return NextResponse.json(
-        { error: "Students can only post doubts and replies." },
+        { error: "Students can only post doubts, materials, and replies." },
         { status: 403 }
       );
     }
-    if (!parent_id && finalType !== "doubt") {
+    if (!parent_id && finalType !== "doubt" && finalType !== "material") {
       return NextResponse.json(
-        { error: "Students can only create root posts of type doubt." },
+        { error: "Students can only create root posts of type doubt or material." },
         { status: 403 }
       );
     }
@@ -156,16 +173,14 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         .single();
       
       if (parentPost && parentPost.author_id !== result.user.id) {
-        await supabase
-          .from('user_notifications')
-          .insert({
-            user_id: parentPost.author_id,
-            type: 'classroom_reply',
-            title: 'Reply to Doubt',
-            body: `${result.user.full_name} replied to your doubt: "${parentPost.content.substring(0, 40)}${parentPost.content.length > 40 ? '...' : ''}"`,
-            link: `/classrooms/${id}/posts/${parent_id}`,
-            read: false
-          });
+        await createNotification({
+          userId: parentPost.author_id,
+          type: 'classroom_reply',
+          title: 'Reply to Doubt',
+          body: `${result.user.full_name} replied to your doubt: "${parentPost.content.substring(0, 40)}${parentPost.content.length > 40 ? '...' : ''}"`,
+          link: `/classrooms/${id}/posts/${parent_id}`,
+          actorId: result.user.id
+        });
       }
     } else {
       // 2. New classroom doubt, material, or announcement posted
@@ -176,7 +191,7 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         .neq("user_id", result.user.id);
       
       if (members && members.length > 0) {
-        const inserts = members.map(m => {
+        const notifyPromises = members.map(m => {
           let typeStr = 'classroom_doubt';
           let titleStr = 'New Doubt Posted';
           let bodyStr = `u/${result.user.full_name.replace(/\s+/g, '_')} posted a new doubt: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
@@ -194,17 +209,17 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
             linkStr = `/classrooms/${id}`;
           }
 
-          return {
-            user_id: m.user_id,
+          return createNotification({
+            userId: m.user_id,
             type: typeStr,
             title: titleStr,
             body: bodyStr,
             link: linkStr,
-            read: false
-          };
+            actorId: result.user.id
+          });
         });
 
-        await supabase.from('user_notifications').insert(inserts);
+        await Promise.all(notifyPromises);
       }
     }
   } catch (err) {

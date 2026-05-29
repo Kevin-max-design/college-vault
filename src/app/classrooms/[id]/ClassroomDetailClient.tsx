@@ -126,8 +126,9 @@ function PostCard({
   onVote: (id: string, direction: 'up' | 'down') => void
 }) {
   const router = useRouter()
-  const meta = TYPE_META[post.type] ?? TYPE_META.thread
-  const isDoubt = post.type === 'doubt'
+  const isMaterial = post.type === 'material' || (post.attachments && post.attachments.length > 0)
+  const meta = isMaterial ? TYPE_META.material : (TYPE_META[post.type] ?? TYPE_META.thread)
+  const isDoubt = post.type === 'doubt' && !isMaterial
 
   // Format existing author names deterministically into Reddit-style handles
   const rawAuthorName = post.author?.full_name ?? 'Anonymous'
@@ -361,16 +362,27 @@ function PostDoubtModal({
 }) {
   const [content, setContent] = useState('')
   const [type, setType] = useState<'doubt' | 'material' | 'announcement'>('doubt')
+  const [userManuallySelected, setUserManuallySelected] = useState(false)
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const canPostMaterial = ['faculty', 'hod', 'principal'].includes(userRole)
+  const isFaculty = ['faculty', 'hod', 'principal'].includes(userRole)
   const typeOptions = [
     { value: 'doubt', label: 'Doubt' },
-    ...(canPostMaterial ? [{ value: 'material', label: 'Material' }, { value: 'announcement', label: 'Announcement' }] : []),
+    { value: 'material', label: 'Material' },
+    ...(isFaculty ? [{ value: 'announcement', label: 'Announcement' }] : []),
   ]
+
+  // Auto-classify type when attachedFiles change, unless manually overridden by the user
+  useEffect(() => {
+    if (attachedFiles.length > 0 && !userManuallySelected) {
+      setType('material')
+    } else if (attachedFiles.length === 0 && !userManuallySelected) {
+      setType('doubt')
+    }
+  }, [attachedFiles, userManuallySelected])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
@@ -468,7 +480,7 @@ function PostDoubtModal({
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
             {typeOptions.map(opt => (
-              <button key={opt.value} type="button" onClick={() => setType(opt.value as typeof type)} style={{
+              <button key={opt.value} type="button" onClick={() => { setType(opt.value as typeof type); setUserManuallySelected(true); }} style={{
                 padding: '5px 14px', borderRadius: 9999, border: '2px solid', cursor: 'pointer',
                 borderColor: type === opt.value ? '#00595c' : '#bec9c9',
                 background: type === opt.value ? '#fea619' : 'transparent',
@@ -539,6 +551,29 @@ function PostDoubtModal({
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {attachedFiles.length > 0 && type === 'doubt' && (
+            <div style={{
+              marginTop: 10, padding: '10px 12px', background: '#fffdf5',
+              border: '2px solid #00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem',
+              color: '#00595c', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              boxShadow: '2px 2px 0 0 #00595c',
+            }}>
+              <span style={{ fontWeight: 600 }}>Posting with files. Save as Material?</span>
+              <button
+                type="button"
+                onClick={() => setType('material')}
+                style={{
+                  background: '#00595c', border: 'none', color: '#fff',
+                  padding: '4px 10px', fontSize: '0.65rem', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'var(--font-jakarta)',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Yes, Material
+              </button>
             </div>
           )}
 
@@ -840,13 +875,24 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     })
   }, [posts])
 
+  function hasAttachments(post: any) {
+    return Boolean(post && post.attachments && post.attachments.length > 0)
+  }
+
   const openDoubtCount = useMemo(() => {
-    return normalizedPosts.filter(p => p && p.type === 'doubt' && !p.resolved && !p.parent_id).length
+    return normalizedPosts.filter(p => p && p.type === 'doubt' && !hasAttachments(p) && !p.resolved && !p.parent_id).length
   }, [normalizedPosts])
 
   const filtered = useMemo(() => {
     const tree = buildTree(normalizedPosts)
-    return filter === 'all' ? tree : tree.filter(p => p && p.type === filter)
+    if (filter === 'all') return tree
+    if (filter === 'material') {
+      return tree.filter(p => p && (p.type === 'material' || hasAttachments(p)))
+    }
+    if (filter === 'doubt') {
+      return tree.filter(p => p && p.type === 'doubt' && !hasAttachments(p))
+    }
+    return tree.filter(p => p && p.type === filter)
   }, [normalizedPosts, filter])
 
   if (!mounted) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
+import { createNotification } from "@/lib/notifications";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -102,16 +103,14 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
 
   // Notify the seller of the buy/rent request
   try {
-    await supabase
-      .from('user_notifications')
-      .insert({
-        user_id: listing.seller_id,
-        type: 'request',
-        title: request_type === 'buy' ? 'Buy Request' : 'Rent Request',
-        body: `${result.user.full_name} requested to ${request_type} your listing: "${listing.title}"`,
-        link: '/vault',
-        read: false
-      });
+    await createNotification({
+      userId: listing.seller_id,
+      type: 'request',
+      title: request_type === 'buy' ? 'Buy Request' : 'Rent Request',
+      body: `${result.user.full_name} requested to ${request_type} your listing: "${listing.title}"`,
+      link: '/vault',
+      actorId: requesterId
+    });
   } catch (err) {
     console.error('Failed to create in-app notification:', err);
   }

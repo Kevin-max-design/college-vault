@@ -160,8 +160,112 @@ export default function AppShell({
   
   const panelRef = useRef<HTMLDivElement>(null)
 
+  // Web Push Subscription States
+  const [pushSupported, setPushSupported] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [subscribing, setSubscribing] = useState(false)
+
+  // Helper to convert base64 VAPID public key
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const handleSubscribe = async () => {
+    if (!pushSupported) return;
+    setSubscribing(true);
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permission denied. Please allow notifications in your browser settings.');
+        setSubscribing(false);
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        throw new Error('VAPID public key is missing in client environment.');
+      }
+
+      const convertedVapidKey = urlBase64ToUint8Array(vapidKey);
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      });
+
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription })
+      });
+
+      if (!res.ok) {
+        throw new Error('Server subscription registration failed.');
+      }
+
+      setIsSubscribed(true);
+    } catch (err: any) {
+      console.error('Push subscription failed:', err);
+      alert(`Could not enable push notifications: ${err.message || err}`);
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    if (!pushSupported) return;
+    setSubscribing(true);
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await fetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint })
+        });
+
+        await subscription.unsubscribe();
+      }
+      setIsSubscribed(false);
+    } catch (err: any) {
+      console.error('Failed to unsubscribe:', err);
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   // Initialize and synchronize with LocalStorage + Supabase
   useEffect(() => {
+    // Detect iOS and Standalone status
+    if (typeof window !== 'undefined') {
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      setIsIOS(ios);
+      
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+      setIsStandalone(!!standalone);
+
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        setPushSupported(true);
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.pushManager.getSubscription().then((subscription) => {
+            setIsSubscribed(!!subscription);
+          });
+        });
+      }
+    }
+
     // 1. Immediate fallback to LocalStorage cache
     const stored = localStorage.getItem('cv_notifications')
     if (stored) {
@@ -404,6 +508,95 @@ export default function AppShell({
 
               {/* Panel Body */}
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                
+                {/* ── Web Push PWA Settings Panel ────────────────── */}
+                {pushSupported && (
+                  <>
+                    {isIOS && !isStandalone ? (
+                      <div style={{
+                        padding: '12px 14px',
+                        background: '#fffdf5',
+                        borderBottom: '2px solid #00595c',
+                        fontFamily: 'var(--font-jakarta)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#00595c' }}>phone_iphone</span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#00595c' }}>Enable iOS Push Alerts</span>
+                        </div>
+                        <p style={{ fontSize: '0.68rem', margin: 0, color: '#1A1A1A', lineHeight: 1.35 }}>
+                          Add Campus Vault to Home Screen, open it from Home Screen, then enable notifications.
+                        </p>
+                      </div>
+                    ) : !isSubscribed ? (
+                      <div style={{
+                        padding: '12px 14px',
+                        background: '#fffdf5',
+                        borderBottom: '2px solid #00595c',
+                        fontFamily: 'var(--font-jakarta)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#00595c', display: 'block', marginBottom: 2 }}>
+                              Lock Screen Alerts
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: '#7A7A7A' }}>
+                              Get real-time push alerts outside the app!
+                            </span>
+                          </div>
+                          <button
+                            disabled={subscribing}
+                            onClick={handleSubscribe}
+                            style={{
+                              background: '#00595c',
+                              border: 'none',
+                              color: '#FFFFFF',
+                              padding: '6px 12px',
+                              fontFamily: 'var(--font-jakarta)',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: '2px 2px 0 0 #003a3d',
+                              transition: 'all 0.1s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translate(-1px, -1px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                          >
+                            {subscribing ? 'Enabling...' : 'Enable'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '8px 14px',
+                        background: '#f8faf9',
+                        borderBottom: '1px solid #bec9c9',
+                        fontFamily: 'var(--font-jakarta)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#2D4A3E' }}>check_circle</span>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#2D4A3E' }}>Push notifications active</span>
+                        </div>
+                        <button
+                          onClick={handleUnsubscribe}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#7A7A7A',
+                            fontFamily: 'var(--font-jakarta)',
+                            fontSize: '0.62rem',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Opt-out
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
                 {notifications.length === 0 ? (
                   <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 32, display: 'block', marginBottom: 6 }}>notifications_off</span>

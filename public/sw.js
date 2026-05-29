@@ -59,3 +59,61 @@ self.addEventListener('fetch', (event) => {
       })
   )
 })
+
+// ── WEB PUSH EVENT LISTENERS ───────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  try {
+    const payload = event.data.json()
+    const { title, body, link } = payload
+
+    const options = {
+      body: body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: {
+        link: link || '/'
+      },
+      vibrate: [100, 50, 100],
+      actions: [
+        { action: 'open', title: 'Open' }
+      ]
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(title || 'Campus Vault Alert', options)
+    );
+  } catch (err) {
+    console.error('Error handling service worker push event:', err);
+  }
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+
+  const targetLink = event.notification.data?.link || '/'
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If there is an open client tab, focus and navigate it
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          try {
+            client.focus();
+            if ('navigate' in client) {
+              return client.navigate(targetLink);
+            }
+          } catch (e) {
+            console.error('Failed to focus/navigate existing tab:', e);
+          }
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetLink);
+      }
+    })
+  )
+})

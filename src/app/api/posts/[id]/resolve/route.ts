@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
+import { createNotification } from "@/lib/notifications";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -19,7 +20,7 @@ export async function PATCH(_req: NextRequest, ctx: RouteContext) {
   // Fetch current post
   const { data: post, error: fetchErr } = await supabase
     .from("posts")
-    .select("id, author_id, resolved")
+    .select("id, author_id, resolved, classroom_id")
     .eq("id", id)
     .single();
 
@@ -48,16 +49,14 @@ export async function PATCH(_req: NextRequest, ctx: RouteContext) {
   // Notify the doubt author if someone else (e.g., faculty) resolved it
   try {
     if (post.author_id !== result.user.id) {
-      await supabase
-        .from('user_notifications')
-        .insert({
-          user_id: post.author_id,
-          type: 'resolved',
-          title: data.resolved ? 'Doubt Resolved' : 'Doubt Reopened',
-          body: `Your doubt has been marked as ${data.resolved ? 'resolved' : 'reopened'} by ${result.user.full_name}.`,
-          link: `/classrooms/${data.classroom_id}/posts/${id}`,
-          read: false
-        });
+      await createNotification({
+        userId: post.author_id,
+        type: 'resolved',
+        title: data.resolved ? 'Doubt Resolved' : 'Doubt Reopened',
+        body: `Your doubt has been marked as ${data.resolved ? 'resolved' : 'reopened'} by ${result.user.full_name}.`,
+        link: `/classrooms/${data.classroom_id}/posts/${id}`,
+        actorId: result.user.id
+      });
     }
   } catch (err) {
     console.error('Failed to dispatch doubt resolution notification:', err);
