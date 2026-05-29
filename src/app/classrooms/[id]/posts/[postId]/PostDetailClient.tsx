@@ -63,11 +63,13 @@ function initials(name = '') {
   return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || '?' 
 }
 
+// TODO: Migration Plan — Once database post_type enum is migrated ('thread' -> 'reply'),
+// rename the key 'thread' to 'reply' in TYPE_META.
 const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
   doubt:        { label: 'Doubt',        color: '#ba1a1a', icon: 'help' },
   material:     { label: 'Material',     color: '#00595c', icon: 'book' },
   announcement: { label: 'Announcement', color: '#855300', icon: 'campaign' },
-  thread:       { label: 'Thread',       color: '#3e4949', icon: 'forum' },
+  thread:       { label: 'Reply',        color: '#3e4949', icon: 'forum' },
 }
 /* Helper to flatten posts (recursively extracts nested replies from seed arrays) */
 export function flattenPosts(posts: Post[]): Post[] {
@@ -400,7 +402,7 @@ function ThreadNode({
       {/* Clickable Reddit Left Collapsible Track Line */}
       <div 
         onClick={() => setCollapsed(true)}
-        title="Collapse thread"
+        title="Collapse replies"
         style={{
           width: 12,
           cursor: 'pointer',
@@ -526,7 +528,7 @@ function ThreadNode({
             {/* Actions: Upvote/Downvote & Reply */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {/* Reddit Style Vote Box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1.5px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff', padding: '0 4px' }}>
                 <button 
                   onClick={() => onVote(post.id, 'up')} 
                   title="Upvote"
@@ -546,15 +548,6 @@ function ThreadNode({
                 >
                   ▲
                 </button>
-                <span style={{ 
-                  fontFamily: 'var(--font-jakarta)', 
-                  fontSize: '0.7rem', 
-                  fontWeight: 700, 
-                  padding: '0 6px',
-                  color: myUpvoted ? '#ff4500' : myDownvoted ? '#7193ff' : '#1b1c19',
-                }}>
-                  {score}
-                </span>
                 <button 
                   onClick={() => onVote(post.id, 'down')} 
                   title="Downvote"
@@ -596,7 +589,7 @@ function ThreadNode({
                 </span>
               )}
 
-              {isDoubt && (
+              {isDoubt && (isMe || ['faculty', 'hod', 'principal'].includes(userRole)) && (
                 <button onClick={() => onResolve(post.id)} style={{
                   padding: '4px 8px', border: `1.5px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
                   background: post.resolved ? 'transparent' : '#00595c',
@@ -653,7 +646,15 @@ function ThreadNode({
 
 /* ── Main Detail Component ────────────────────────────────────────── */
 export default function PostDetailClient({ classroom, postId, initialPosts, userId, userRole }: Props) {
-  const [posts, setPosts] = useState<Post[]>(() => flattenPosts(initialPosts))
+  const [posts, setPosts] = useState<Post[]>(() => {
+    const flat = flattenPosts(initialPosts)
+    return flat.map(p => {
+      if (p && p.type === 'thread' && !p.parent_id) {
+        return { ...p, type: 'doubt' as const }
+      }
+      return p
+    })
+  })
   const [directCommentText, setDirectCommentText] = useState('')
   const [commentPending, startComment] = useTransition()
   const [directAttachedFiles, setDirectAttachedFiles] = useState<File[]>([])
@@ -703,6 +704,25 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     setCurrentUserHandle(storedHandle)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroom.id, classroom.department, userRole])
+
+  // Check if enrolled and load fresh dynamic handle/ID from Supabase
+  useEffect(() => {
+    if (isSeedClassroom) return
+    fetch(`/api/classrooms/${classroom.id}/enroll`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.members)) {
+          const myMember = data.members.find((m: any) => m.user?.id === userId)
+          if (myMember?.anonymous_id && myMember?.anonymous_handle) {
+            setCurrentUserId(myMember.anonymous_id)
+            setCurrentUserHandle(myMember.anonymous_handle)
+            localStorage.setItem(`cv_unique_id_${classroom.id}`, myMember.anonymous_id)
+            localStorage.setItem(`cv_unique_handle_${classroom.id}`, myMember.anonymous_handle)
+          }
+        }
+      })
+      .catch(() => {})
+  }, [classroom.id, userId, isSeedClassroom])
 
   // ── Supabase Realtime: live reply subscription ─────────────────────────────
   useEffect(() => {
@@ -862,9 +882,9 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
     return (
       <div style={{ padding: '40px 18px', textAlign: 'center' }}>
         <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#ba1a1a', marginBottom: 12 }}>error</span>
-        <h2 style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.5rem', color: '#1b1c19', marginBottom: 8 }}>Discussion Not Found</h2>
+        <h2 style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.5rem', color: '#1b1c19', marginBottom: 8 }}>Doubt Not Found</h2>
         <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', color: '#6e7979', marginBottom: 20 }}>
-          This doubt or thread may have been removed or does not exist.
+          This doubt may have been removed or does not exist.
         </p>
         <Link href={`/classrooms/${classroom.id}`} style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 16px',
@@ -1021,7 +1041,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
         const dynamicReplies = [
           "Thanks for raising this doubt! I was struggling with the exact same unit syllabus problem.",
           "Exactly! The lecture on this was a bit rushed. The formula is actually covered in Chapter 4, section 2.",
-          "Excellent thread! Let's check with the faculty during our seminar session tomorrow.",
+          "Excellent question! Let's check with the faculty during our seminar session tomorrow.",
           "I have a handwritten PDF note on this exact derivation. Let's start a Direct Chat and I'll send it!",
           "Yes! Try rewriting the equations in polar coordinates first; they simplify immediately."
         ]
@@ -1167,15 +1187,6 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
               >
                 ▲
               </button>
-              <span style={{
-                fontFamily: 'var(--font-jakarta)',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                padding: '0 8px',
-                color: mainUpvoted ? '#ff4500' : mainDownvoted ? '#7193ff' : '#1b1c19',
-              }}>
-                {mainScore}
-              </span>
               <button 
                 onClick={() => handleVote(targetPostNode.id, 'down')}
                 style={{
@@ -1191,7 +1202,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
               </button>
             </div>
 
-            {targetPostNode.type === 'doubt' && (
+            {targetPostNode.type === 'doubt' && (isMainAuthorMe || ['faculty', 'hod', 'principal'].includes(userRole)) && (
               <button 
                 onClick={() => handleResolve(targetPostNode.id)}
                 style={{
@@ -1209,20 +1220,11 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
         </div>
       </div>
 
-      {/* Discussion title and identity banner */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h2 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.4rem', color: '#1b1c19' }}>
-          Classroom Discussion ({targetPostNode.replies?.length || 0} comments)
+      {/* Discussion title */}
+      <div style={{ marginBottom: 14 }}>
+        <h2 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.4rem', color: '#1b1c19', margin: 0 }}>
+          Classroom Replies ({targetPostNode.replies?.length || 0})
         </h2>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          background: '#e8f5f5', border: '2px solid #00595c',
-          padding: '3px 10px',
-        }}>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#00595c' }}>
-            👤 ID: {currentUserHandle}
-          </span>
-        </div>
       </div>
 
       {/* Join the Discussion Box (Author replied restriction) */}
@@ -1358,6 +1360,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
       {activeChatUser && (
         <DirectChatWidget
           currentUserHandle={currentUserHandle}
+          currentUserId={currentUserId}
           recipient={activeChatUser}
           onClose={() => setActiveChatUser(null)}
           classroomId={classroom.id}

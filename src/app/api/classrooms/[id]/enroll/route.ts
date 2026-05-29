@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
   // Check if already enrolled
   const { data: existing } = await supabase
     .from('classroom_members')
-    .select('id, seat_code')
+    .select('id, seat_code, anonymous_id, anonymous_handle')
     .eq('classroom_id', classroomId)
     .eq('user_id', userId)
     .single()
@@ -37,6 +37,8 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({
       enrollment_id: existing.id,
       seat_code: existing.seat_code,
+      anonymous_id: existing.anonymous_id,
+      anonymous_handle: existing.anonymous_handle,
       already_enrolled: true,
     })
   }
@@ -45,14 +47,24 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
   const seatNumber = Math.floor(1000 + Math.random() * 9000)
   const seatCode = `CV-${seatNumber}`
 
+  const adjectives = ['Curious', 'Studious', 'Analytical', 'Bright', 'Clever', 'Mindful', 'Academic', 'Creative']
+  const nouns = ['Scholar', 'Mind', 'Explorer', 'Thinker', 'Learner', 'Guru', 'Innovator']
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
+  const noun = nouns[Math.floor(Math.random() * nouns.length)]
+  const randNum = Math.floor(100 + Math.random() * 900)
+  const anonymousHandle = `u/${adj}_${noun}_${randNum}`
+  const anonymousId = 'u_' + Math.random().toString(36).substring(2, 11)
+
   const { data: newEnrollment, error } = await supabase
     .from('classroom_members')
     .insert({
       classroom_id: classroomId,
       user_id: userId,
       seat_code: seatCode,
+      anonymous_id: anonymousId,
+      anonymous_handle: anonymousHandle,
     })
-    .select('id, seat_code')
+    .select('id, seat_code, anonymous_id, anonymous_handle')
     .single()
 
   if (error) {
@@ -60,7 +72,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
     if (error.code === '23505') {
       const { data: retry } = await supabase
         .from('classroom_members')
-        .select('id, seat_code')
+        .select('id, seat_code, anonymous_id, anonymous_handle')
         .eq('classroom_id', classroomId)
         .eq('user_id', userId)
         .single()
@@ -68,6 +80,8 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
         return NextResponse.json({
           enrollment_id: retry.id,
           seat_code: retry.seat_code,
+          anonymous_id: retry.anonymous_id,
+          anonymous_handle: retry.anonymous_handle,
           already_enrolled: true,
         })
       }
@@ -76,6 +90,8 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({
       enrollment_id: null,
       seat_code: seatCode,
+      anonymous_id: anonymousId,
+      anonymous_handle: anonymousHandle,
       already_enrolled: false,
     })
   }
@@ -83,6 +99,8 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
   return NextResponse.json({
     enrollment_id: newEnrollment.id,
     seat_code: newEnrollment.seat_code,
+    anonymous_id: newEnrollment.anonymous_id,
+    anonymous_handle: newEnrollment.anonymous_handle,
     already_enrolled: false,
   }, { status: 201 })
 }
@@ -107,7 +125,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
   const { data, error } = await supabase
     .from('classroom_members')
     .select(`
-      id, seat_code, joined_at,
+      id, seat_code, joined_at, anonymous_id, anonymous_handle,
       user:profiles!classroom_members_user_id_fkey(id, full_name, email, role, department)
     `)
     .eq('classroom_id', classroomId)

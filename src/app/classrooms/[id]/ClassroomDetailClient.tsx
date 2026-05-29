@@ -55,7 +55,7 @@ const TYPE_META: Record<string, { label: string; color: string; icon: string }> 
   doubt:        { label: 'Doubt',        color: '#ba1a1a', icon: 'help' },
   material:     { label: 'Material',     color: '#00595c', icon: 'book' },
   announcement: { label: 'Announcement', color: '#855300', icon: 'campaign' },
-  thread:       { label: 'Thread',       color: '#3e4949', icon: 'forum' },
+  thread:       { label: 'Reply',        color: '#3e4949', icon: 'forum' },
 }
 
 
@@ -114,12 +114,13 @@ function PostCard({
   post, 
   classroomId, 
   userId, 
+  userRole,
   currentUserHandle,
   currentUserId,
   onResolve, 
   onVote 
 }: {
-  post: Post; classroomId: string; userId: string
+  post: Post; classroomId: string; userId: string; userRole: string
   currentUserHandle: string; currentUserId: string
   onResolve: (id: string) => void
   onVote: (id: string, direction: 'up' | 'down') => void
@@ -163,8 +164,8 @@ function PostCard({
     <div style={{
       border: `2px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
       background: post.resolved ? '#f5f3ee' : '#fbf9f4',
-      padding: '16px 18px',
-      boxShadow: post.resolved ? 'none' : '4px 4px 0 0 #00595c',
+      padding: '12px 14px',
+      boxShadow: post.resolved ? 'none' : '3px 3px 0 0 #00595c',
       cursor: 'pointer',
       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
     }}
@@ -172,36 +173,36 @@ function PostCard({
     onMouseEnter={e => {
       if (!post.resolved) {
         e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '6px 6px 0 0 #00595c'
+        e.currentTarget.style.boxShadow = '4px 4px 0 0 #00595c'
       }
     }}
     onMouseLeave={e => {
       if (!post.resolved) {
         e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = '4px 4px 0 0 #00595c'
+        e.currentTarget.style.boxShadow = '3px 3px 0 0 #00595c'
       }
     }}
     >
       {/* Header: type badge + time */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14, color: post.resolved ? '#6e7979' : meta.color }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13, color: post.resolved ? '#6e7979' : meta.color }}>
             {post.resolved ? 'check_circle' : meta.icon}
           </span>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: post.resolved ? '#6e7979' : meta.color }}>
+          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: post.resolved ? '#6e7979' : meta.color }}>
             {post.resolved ? 'Resolved' : meta.label}
           </span>
         </div>
-        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
+        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
       </div>
 
       {/* Content preview */}
       <p style={{ 
         fontFamily: 'var(--font-jakarta)', 
-        fontSize: '0.95rem', 
-        lineHeight: 1.6, 
+        fontSize: '0.9rem', 
+        lineHeight: 1.5, 
         color: '#1b1c19', 
-        marginBottom: post.attachments && post.attachments.length > 0 ? 10 : 14,
+        marginBottom: post.attachments && post.attachments.length > 0 ? 8 : 12,
         display: '-webkit-box',
         WebkitLineClamp: 3,
         WebkitBoxOrient: 'vertical',
@@ -212,7 +213,7 @@ function PostCard({
 
       {/* Render attachments */}
       {post.attachments && post.attachments.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: -6, marginBottom: 14 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -4, marginBottom: 12 }}>
           {post.attachments.map((att, i) => {
             const isPdf = att.name.toLowerCase().endsWith('.pdf')
             const isPpt = att.name.toLowerCase().endsWith('.ppt') || att.name.toLowerCase().endsWith('.pptx')
@@ -226,25 +227,25 @@ function PostCard({
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()} // prevent card navigation trigger
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '5px 10px', border: '1.5px solid #00595c',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 8px', border: '1px solid #00595c',
                   background: '#ffffff', color: '#1b1c19',
-                  fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem',
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
                   fontWeight: 700, textDecoration: 'none',
-                  boxShadow: '2px 2px 0 0 #00595c',
+                  boxShadow: '1.5px 1.5px 0 0 #00595c',
                   transition: 'transform 0.1s, box-shadow 0.1s',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateY(-1px)'
-                  e.currentTarget.style.boxShadow = '3px 3px 0 0 #00595c'
+                  e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = 'none'
-                  e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
+                  e.currentTarget.style.boxShadow = '1.5px 1.5px 0 0 #00595c'
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 15, color: iconColor }}>{icon}</span>
-                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 13, color: iconColor }}>{icon}</span>
+                <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
               </a>
             )
           })}
@@ -257,91 +258,82 @@ function PostCard({
         onClick={e => e.stopPropagation()} // Prevent card navigation when clicking specific buttons
       >
         {/* Author badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{
-            width: 22, height: 22, borderRadius: '50%', background: isMe ? '#fea619' : '#0d7377',
-            border: '1.5px solid #00595c', display: 'flex', alignItems: 'center',
+            width: 20, height: 20, borderRadius: '50%', background: isMe ? '#fea619' : '#0d7377',
+            border: '1.2px solid #00595c', display: 'flex', alignItems: 'center',
             justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
           }}>
-            <span style={{ color: isMe ? '#684000' : '#a2f5f9', fontSize: '0.55rem', fontWeight: 700 }}>
+            <span style={{ color: isMe ? '#684000' : '#a2f5f9', fontSize: '0.52rem', fontWeight: 700 }}>
               {initials(authorHandle)}
             </span>
           </div>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: isMe ? '#855300' : '#3e4949' }}>
+          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem', fontWeight: 700, color: isMe ? '#855300' : '#3e4949' }}>
             {authorHandle} {isMe && '(You)'}
           </span>
         </div>
 
         {/* Dashboard actions */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {/* Upvote/Downvote Reddit block */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f5f3ee', padding: '2px 6px', border: '1px solid #00595c' }}>
             <button 
               onClick={() => onVote(post.id, 'up')} 
               title="Upvote"
               style={{
-                background: myUpvoted ? '#ff4500' : 'transparent',
+                background: 'transparent',
                 border: 'none',
-                color: myUpvoted ? '#fff' : '#6e7979',
-                padding: '3px 8px',
+                color: myUpvoted ? '#ff4500' : '#6e7979',
                 cursor: 'pointer',
+                fontSize: '0.7rem',
+                padding: 0,
                 display: 'flex',
                 alignItems: 'center',
-                fontSize: '0.75rem',
               }}
             >
               ▲
             </button>
-            <span style={{ 
-              fontFamily: 'var(--font-jakarta)', 
-              fontSize: '0.7rem', 
-              fontWeight: 700, 
-              padding: '0 6px',
-              color: myUpvoted ? '#ff4500' : myDownvoted ? '#7193ff' : '#1b1c19',
-            }}>
-              {score}
-            </span>
             <button 
               onClick={() => onVote(post.id, 'down')} 
               title="Downvote"
               style={{
-                background: myDownvoted ? '#7193ff' : 'transparent',
+                background: 'transparent',
                 border: 'none',
-                color: myDownvoted ? '#fff' : '#6e7979',
-                padding: '3px 8px',
+                color: myDownvoted ? '#7193ff' : '#6e7979',
                 cursor: 'pointer',
+                fontSize: '0.7rem',
+                padding: 0,
                 display: 'flex',
                 alignItems: 'center',
-                fontSize: '0.75rem',
               }}
             >
               ▼
             </button>
           </div>
 
-          {/* Separate thread page link */}
+          {/* Separate replies page link */}
           <button 
             onClick={navigateToPost}
             style={{
-              display: 'flex', alignItems: 'center', gap: 3, padding: '5px 10px',
-              border: '1.5px solid #00595c', background: '#fea619',
-              color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+              display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px',
+              border: '1px solid #00595c', background: '#fea619',
+              color: '#684000', fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem',
               fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-              boxShadow: '2px 2px 0 0 #00595c',
+              boxShadow: '1.5px 1.5px 0 0 #00595c',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>forum</span>
-            View Discussion ({totalComments})
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>forum</span>
+            Replies ({totalComments})
           </button>
 
-          {isDoubt && (
+          {isDoubt && (isMe || ['faculty', 'hod', 'principal'].includes(userRole)) && (
             <button 
               onClick={() => onResolve(post.id)} 
               style={{
-                padding: '5px 10px', border: `1.5px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
+                padding: '4px 8px', border: `1px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
                 background: post.resolved ? 'transparent' : '#00595c',
                 color: post.resolved ? '#6e7979' : '#fff',
-                fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem',
                 fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
               }}
             >
@@ -368,7 +360,7 @@ function PostDoubtModal({
   currentUserHandle: string; currentUserId: string
 }) {
   const [content, setContent] = useState('')
-  const [type, setType] = useState<'doubt' | 'thread' | 'material' | 'announcement'>('doubt')
+  const [type, setType] = useState<'doubt' | 'material' | 'announcement'>('doubt')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
@@ -377,7 +369,6 @@ function PostDoubtModal({
   const canPostMaterial = ['faculty', 'hod', 'principal'].includes(userRole)
   const typeOptions = [
     { value: 'doubt', label: 'Doubt' },
-    { value: 'thread', label: 'Thread' },
     ...(canPostMaterial ? [{ value: 'material', label: 'Material' }, { value: 'announcement', label: 'Announcement' }] : []),
   ]
 
@@ -571,7 +562,7 @@ function PostDoubtModal({
 export default function ClassroomDetailClient({ classroom, initialPosts, doubtCount: initDC, userId, userRole }: Props) {
   const [posts, setPosts] = useState<Post[]>(() => flattenPosts(initialPosts))
   const [showModal, setShowModal] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'doubt' | 'material' | 'thread'>('all')
+  const [filter, setFilter] = useState<'all' | 'doubt' | 'material'>('all')
   const [seatCode, setSeatCode] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   
@@ -624,6 +615,12 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           if (myMember?.seat_code) {
             setSeatCode(myMember.seat_code)
           }
+          if (myMember?.anonymous_id && myMember?.anonymous_handle) {
+            setCurrentUserId(myMember.anonymous_id)
+            setCurrentUserHandle(myMember.anonymous_handle)
+            localStorage.setItem(`cv_unique_id_${classroom.id}`, myMember.anonymous_id)
+            localStorage.setItem(`cv_unique_handle_${classroom.id}`, myMember.anonymous_handle)
+          }
         }
       })
       .catch(() => {})
@@ -654,6 +651,12 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
         // 4. If success, keep UI.
         if (data?.seat_code) {
           setSeatCode(data.seat_code)
+        }
+        if (data?.anonymous_id && data?.anonymous_handle) {
+          setCurrentUserId(data.anonymous_id)
+          setCurrentUserHandle(data.anonymous_handle)
+          localStorage.setItem(`cv_unique_id_${classroom.id}`, data.anonymous_id)
+          localStorage.setItem(`cv_unique_handle_${classroom.id}`, data.anonymous_handle)
         }
       } else {
         // 5. If failure, rollback previous state.
@@ -798,7 +801,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       const dynamicReplies = [
         "Thanks for raising this doubt! I was struggling with the exact same unit syllabus problem.",
         "Exactly! The lecture on this was a bit rushed. The formula is actually covered in Chapter 4, section 2.",
-        "Excellent thread! Let's check with the faculty during our seminar session tomorrow.",
+        "Excellent question! Let's check with the faculty during our seminar session tomorrow.",
         "I have a handwritten PDF note on this exact derivation. Let's start a Direct Chat and I'll send it!",
         "Yes! Try rewriting the equations in polar coordinates first; they simplify immediately."
       ]
@@ -827,16 +830,24 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   // ── Memoized: build tree + filter only when posts/filter change ──
-  const openDoubtCount = useMemo(() => {
-    if (!Array.isArray(posts)) return 0
-    return posts.filter(p => p && p.type === 'doubt' && !p.resolved && !p.parent_id).length
-  }, [posts])
-  const filtered = useMemo(() => {
+  const normalizedPosts = useMemo(() => {
     if (!Array.isArray(posts)) return []
-    const cleanPosts = posts.filter(p => p && p.id)
-    const tree = buildTree(cleanPosts)
+    return posts.map(p => {
+      if (p && p.type === 'thread') {
+        return { ...p, type: 'doubt' as const }
+      }
+      return p
+    })
+  }, [posts])
+
+  const openDoubtCount = useMemo(() => {
+    return normalizedPosts.filter(p => p && p.type === 'doubt' && !p.resolved && !p.parent_id).length
+  }, [normalizedPosts])
+
+  const filtered = useMemo(() => {
+    const tree = buildTree(normalizedPosts)
     return filter === 'all' ? tree : tree.filter(p => p && p.type === filter)
-  }, [posts, filter])
+  }, [normalizedPosts, filter])
 
   if (!mounted) {
     return (
@@ -851,7 +862,20 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   }
 
   return (
-    <div style={{ padding: '20px 18px 0', position: 'relative' }}>
+    <div style={{ padding: '16px 16px 80px', position: 'relative' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .cv-post-btn-mobile::after {
+            content: "Post";
+          }
+        }
+        @media (min-width: 481px) {
+          .cv-post-btn-mobile::after {
+            content: "Post Doubt";
+          }
+        }
+      `}</style>
+
       {/* ── Premium Neobrutalist Toast Alert ────────────────── */}
       {toast && (
         <div style={{
@@ -876,135 +900,189 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       <Link href="/classrooms" style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none',
         color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
-        fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 20,
+        fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16,
       }}>
         <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_back</span>
         Classrooms
       </Link>
 
-      {/* Header card */}
-      <div style={{ border: '2px solid #00595c', boxShadow: '5px 5px 0 0 #00595c', marginBottom: 28, overflow: 'hidden' }}>
-        <div style={{ background: '#00595c', height: 6 }} />
-        <div style={{ padding: '20px 20px 18px', background: '#fbf9f4' }}>
-          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6e7979', display: 'block', marginBottom: 4 }}>
-            {classroom.subject_type === 'core' ? 'Core Subject' : 'Elective'} · Year {classroom.year}
+      {/* Simplified Header card */}
+      <div style={{ 
+        border: '2px solid #00595c', 
+        boxShadow: '4px 4px 0 0 #00595c', 
+        marginBottom: 16, 
+        background: '#fbf9f4',
+        padding: '16px',
+        position: 'relative'
+      }}>
+        <h1 style={{ 
+          fontFamily: 'var(--font-newsreader)', 
+          fontWeight: 800, 
+          fontSize: '1.65rem', 
+          lineHeight: 1.15, 
+          color: '#00595c', 
+          marginBottom: 4 
+        }}>
+          {classroom.name}
+        </h1>
+        <span style={{ 
+          fontFamily: 'var(--font-jakarta)', 
+          fontSize: '0.7rem', 
+          fontWeight: 700, 
+          letterSpacing: '0.05em', 
+          textTransform: 'uppercase', 
+          color: '#6e7979', 
+          display: 'block', 
+          marginBottom: 8 
+        }}>
+          {classroom.subject_type === 'core' ? 'Core Subject' : 'Elective'} · Year {classroom.year}
+        </span>
+        <p style={{ 
+          fontFamily: 'var(--font-jakarta)', 
+          fontSize: '0.82rem', 
+          lineHeight: 1.5, 
+          color: '#3e4949',
+          marginBottom: 10
+        }}>
+          {classroom.description}
+        </p>
+        
+        {/* Open Doubts + Department Inline Row */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 6, 
+          fontFamily: 'var(--font-jakarta)', 
+          fontSize: '0.72rem', 
+          fontWeight: 700, 
+          color: '#6e7979',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: openDoubtCount > 0 ? '#ba1a1a' : '#6e7979', display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>help</span>
+            {openDoubtCount} open {openDoubtCount === 1 ? 'doubt' : 'doubts'}
           </span>
-          <h1 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 800, fontSize: '2rem', lineHeight: 1.15, color: '#00595c', marginBottom: 8 }}>
-            {classroom.name}
-          </h1>
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', lineHeight: 1.6, color: '#3e4949' }}>
-            {classroom.description}
-          </p>
-          <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 12, borderTop: '1.5px solid #bec9c9', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: openDoubtCount > 0 ? '#ba1a1a' : '#6e7979', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help</span>
-                {openDoubtCount} open {openDoubtCount === 1 ? 'doubt' : 'doubts'}
-              </span>
-              <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: '#6e7979', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>group</span>
-                {classroom.department}
-              </span>
-            </div>
-
-            {/* Active Identity Badges */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: '#e8f5f5', border: '2px solid #00595c',
-                padding: '3px 10px',
-              }}>
-                <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#00595c' }}>
-                  👤 ID: {currentUserHandle}
-                </span>
-              </div>
-              
-              {/* Manual Join Classroom Button (Optimistic UI) */}
-              {!seatCode && (
-                <button
-                  onClick={handleJoinClassroom}
-                  className="cv-transition-btn"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    background: '#81d4d8', border: '2px solid #00595c',
-                    color: '#004f52',
-                    padding: '3px 10px', boxShadow: '2px 2px 0 0 #00595c',
-                    fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person_add</span>
-                  Join Classroom
-                </button>
-              )}
-
-              {seatCode && (
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  background: '#fea619', border: '2px solid #855300',
-                  padding: '3px 10px', boxShadow: '2px 2px 0 0 #855300',
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#684000' }}>badge</span>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 800, color: '#684000', letterSpacing: '0.08em' }}>
-                    {seatCode}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+          <span>•</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>group</span>
+            {classroom.department}
+          </span>
         </div>
       </div>
 
-      {/* Demo banner */}
-      {isSeedClassroom && (
+      {/* Join Classroom full-width button below header if not joined */}
+      {!seatCode && (
+        <button
+          onClick={handleJoinClassroom}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            background: '#81d4d8',
+            border: '2px solid #00595c',
+            color: '#004f52',
+            padding: '12px',
+            boxShadow: '4px 4px 0 0 #00595c',
+            fontFamily: 'var(--font-jakarta)',
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            marginBottom: 20,
+            transition: 'transform 0.1s, box-shadow 0.1s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.boxShadow = '5px 5px 0 0 #00595c'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'none'
+            e.currentTarget.style.boxShadow = '4px 4px 0 0 #00595c'
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span>
+          Join Classroom
+        </button>
+      )}
+
+      {/* Optionally show small text if joined */}
+      {seatCode && (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: '#ffddb8', border: '2px solid #855300',
-          padding: '10px 14px', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#4a2800',
-          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontFamily: 'var(--font-jakarta)',
+          fontSize: '0.72rem',
+          color: '#6e7979',
+          marginBottom: 16,
+          padding: '0 4px'
         }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#855300', fontVariationSettings: '"FILL" 1' }}>info</span>
-          <span>✨ <strong>Classroom Feed</strong> — click <strong>"View Discussion"</strong> on any doubt or thread to view collapsible Reddit nested comments and chat directly with your classmates.</span>
+          <span>
+            Joined as <strong style={{ color: '#00595c' }}>{currentUserHandle}</strong>
+          </span>
         </div>
       )}
 
       {/* Section header + Post button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h2 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.5rem', color: '#1b1c19' }}>
-          Doubts &amp; Threads
-        </h2>
-        <button
-          onClick={() => setShowModal(true)}
-          disabled={!seatCode && !isSeedClassroom}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
-            background: (!seatCode && !isSeedClassroom) ? '#dbdad5' : '#fea619',
-            border: '2px solid #00595c',
-            color: (!seatCode && !isSeedClassroom) ? '#8b949e' : '#684000',
-            fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
-            letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: (!seatCode && !isSeedClassroom) ? 'not-allowed' : 'pointer',
-            boxShadow: (!seatCode && !isSeedClassroom) ? 'none' : '3px 3px 0 0 #00595c',
-            opacity: (!seatCode && !isSeedClassroom) ? 0.65 : 1,
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
-          Post Doubt
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div>
+          <h2 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 700, fontSize: '1.35rem', color: '#1b1c19', margin: 0 }}>
+            Doubts
+          </h2>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#6e7979', margin: '2px 0 0 0' }}>
+            Tap a post to view replies.
+          </p>
+        </div>
+        {(seatCode || isSeedClassroom) && (
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px',
+              background: '#fea619',
+              border: '2px solid #00595c',
+              color: '#684000',
+              fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem', fontWeight: 800,
+              letterSpacing: '0.05em', textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '2px 2px 0 0 #00595c',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>
+            <span className="cv-post-btn-mobile" />
+          </button>
+        )}
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[{ key: 'all', label: 'All' }, { key: 'doubt', label: 'Doubts' }, { key: 'thread', label: 'Threads' }, { key: 'material', label: 'Materials' }].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key as typeof filter)} style={{
-            padding: '4px 12px', borderRadius: 9999, border: '2px solid', cursor: 'pointer',
-            borderColor: filter === f.key ? '#00595c' : '#bec9c9',
-            background: filter === f.key ? '#fea619' : 'transparent',
-            color: filter === f.key ? '#684000' : '#6e7979',
-            fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700,
-            letterSpacing: '0.07em', textTransform: 'uppercase',
-            boxShadow: filter === f.key ? '2px 2px 0 0 #00595c' : 'none',
-          }}>
+      {/* Filters Segmented Tabs */}
+      <div style={{ 
+        display: 'flex', 
+        border: '1.5px solid #00595c', 
+        background: '#f5f3ee', 
+        padding: 2, 
+        gap: 2,
+        marginBottom: 16,
+        maxWidth: 'fit-content'
+      }}>
+        {[{ key: 'all', label: 'All' }, { key: 'doubt', label: 'Doubts' }, { key: 'material', label: 'Materials' }].map(f => (
+          <button 
+            key={f.key} 
+            onClick={() => setFilter(f.key as typeof filter)} 
+            style={{
+              padding: '4px 10px', 
+              border: 'none', 
+              cursor: 'pointer',
+              background: filter === f.key ? '#00595c' : 'transparent',
+              color: filter === f.key ? '#ffffff' : '#6e7979',
+              fontFamily: 'var(--font-jakarta)', 
+              fontSize: '0.62rem', 
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+          >
             {f.label}
           </button>
         ))}
@@ -1012,24 +1090,25 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
 
       {/* Thread list */}
       {filtered.length === 0 ? (
-        <div style={{ border: '2px dashed #bec9c9', padding: '40px 20px', textAlign: 'center', marginBottom: 20 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 40, color: '#bec9c9', display: 'block', marginBottom: 10 }}>
+        <div style={{ border: '2px dashed #bec9c9', padding: '32px 16px', textAlign: 'center', marginBottom: 20 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 36, color: '#bec9c9', display: 'block', marginBottom: 8 }}>
             {!seatCode && !isSeedClassroom ? 'lock' : 'forum'}
           </span>
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#6e7979' }}>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#6e7979' }}>
             {!seatCode && !isSeedClassroom
-              ? 'Join this classroom to view and post discussions.'
-              : 'No posts yet — tap "Post Doubt" to start the conversation.'}
+              ? 'Join this classroom to post doubts.'
+              : 'No posts yet. Start the first discussion.'}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 40 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
           {filtered.map(post => (
             <PostCard
               key={post.id}
               post={post}
               classroomId={classroom.id}
               userId={userId}
+              userRole={userRole}
               currentUserHandle={currentUserHandle}
               currentUserId={currentUserId}
               onResolve={handleResolve}

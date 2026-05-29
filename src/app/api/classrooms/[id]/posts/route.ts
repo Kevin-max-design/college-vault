@@ -95,13 +95,32 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // TODO: Migration Plan — Rename database post_type enum 'thread' -> 'reply'.
+  // Currently, the database only supports 'thread' via the post_type enum constraint.
+  // Once the database migration (supabase_thread_to_reply_migration_todo.sql) is executed,
+  // we should completely search-and-replace 'thread' with 'reply' throughout the codebase.
+  
+  // Convert thread to doubt for backward compatibility (only for root posts)
+  let finalType = type;
+  if (!parent_id && finalType === "thread") {
+    finalType = "doubt";
+  }
+
   // Role-based type restriction
   const studentAllowed = ["doubt", "thread"];
-  if (result.user.role === "student" && !studentAllowed.includes(type)) {
-    return NextResponse.json(
-      { error: "Students can only post doubts and threads." },
-      { status: 403 }
-    );
+  if (result.user.role === "student") {
+    if (!studentAllowed.includes(finalType)) {
+      return NextResponse.json(
+        { error: "Students can only post doubts and replies." },
+        { status: 403 }
+      );
+    }
+    if (!parent_id && finalType !== "doubt") {
+      return NextResponse.json(
+        { error: "Students can only create root posts of type doubt." },
+        { status: 403 }
+      );
+    }
   }
 
   const supabase = await getSupabaseClient();
@@ -112,7 +131,7 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
       classroom_id: id,
       author_id: result.user.id,
       content,
-      type,
+      type: finalType,
       attachments: attachments ?? [],
       parent_id: parent_id ?? null,
     })

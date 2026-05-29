@@ -17,7 +17,7 @@ export default function RolesSection() {
     ["Feature", "Student", "Faculty", "HOD", "Admin Cells", "Principal", "Super Admin"],
     ["Join Classroom", "✓", "✓", "✓", "✗", "✗", "✓"],
     ["Create Classroom", "✗", "✓", "✓", "✗", "✗", "✓"],
-    ["Post Thread", "✓", "✓", "✓", "✗", "✗", "✓"],
+    ["Post Doubt", "✓", "✓", "✓", "✗", "✗", "✓"],
     ["Global Notice", "✗", "✗", "✗", "✓", "✓", "✓"],
     ["Dept Notice", "✗", "✓", "✓", "✓", "✓", "✓"],
     ["Manage Users", "✗", "✗", "✗", "✗", "✗", "✓"],

@@ -11,6 +11,7 @@ export interface ChatMessage {
 
 interface DirectChatWidgetProps {
   currentUserHandle: string
+  currentUserId: string
   recipient: { id: string; handle: string }
   onClose: () => void
   classroomId: string
@@ -19,6 +20,7 @@ interface DirectChatWidgetProps {
 
 export default function DirectChatWidget({
   currentUserHandle,
+  currentUserId,
   recipient,
   onClose,
   classroomId,
@@ -29,12 +31,18 @@ export default function DirectChatWidget({
   const bodyRef = useRef<HTMLDivElement>(null)
   const storageKey = `cv_chat_${classroomId}_${recipient.id}`
 
-  // Load existing messages or seed an initial ice-breaker
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isRealUser = UUID_RE.test(recipient.id) && UUID_RE.test(currentUserId)
+
+  // Load existing messages (fallback/cache first, then fetch from Supabase)
   useEffect(() => {
+    // 1. Fallback to localStorage cache immediately
     const stored = localStorage.getItem(storageKey)
+    let cachedMessages: ChatMessage[] = []
     if (stored) {
       try {
-        setMessages(JSON.parse(stored))
+        cachedMessages = JSON.parse(stored)
+        setMessages(cachedMessages)
       } catch (e) {
         console.error(e)
       }
@@ -43,14 +51,38 @@ export default function DirectChatWidget({
         {
           id: 'init',
           sender: 'other' as const,
-          text: initialMessage || `Hey! I saw your post in the ${recipient.handle.includes('Guru') ? 'subject thread' : 'classroom discussion'}. Do you want to discuss it or compare notes?`,
+          text: initialMessage || `Hey! I saw your post in the ${recipient.handle.includes('Guru') ? 'subject doubt' : 'classroom discussion'}. Do you want to discuss it or compare notes?`,
           time: new Date().toISOString(),
         },
       ]
       setMessages(initial)
       localStorage.setItem(storageKey, JSON.stringify(initial))
+      cachedMessages = initial
     }
-  }, [storageKey, recipient.handle, initialMessage])
+
+    // 2. Fetch fresh chat history from Supabase source of truth
+    if (isRealUser) {
+      fetch(`/api/classrooms/${classroomId}/chat`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data.messages)) {
+            // Map DB messages to UI ChatMessages
+            const dbMsgs: ChatMessage[] = data.messages.map((m: any) => ({
+              id: m.id,
+              sender: m.sender_id === currentUserId ? 'me' : 'other',
+              text: m.body,
+              time: m.created_at,
+            }))
+
+            // Combine with initial greeting if no peer replies exist
+            const finalMsgs = dbMsgs.length > 0 ? dbMsgs : cachedMessages
+            setMessages(finalMsgs)
+            localStorage.setItem(storageKey, JSON.stringify(finalMsgs))
+          }
+        })
+        .catch(err => console.error('Failed to sync chat history:', err))
+    }
+  }, [storageKey, classroomId, recipient.id, currentUserId, isRealUser, initialMessage, recipient.handle])
 
   // Scroll to bottom on message updates
   useEffect(() => {
@@ -64,44 +96,85 @@ export default function DirectChatWidget({
     localStorage.setItem(storageKey, JSON.stringify(msgs))
   }
 
-  function handleSend(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim()) return
 
+    const messageText = text.trim()
+    const tempId = `temp-${Date.now()}`
+    
     const newMsg: ChatMessage = {
-      id: Math.random().toString(36).substring(2, 11),
+      id: tempId,
       sender: 'me',
-      text: text.trim(),
+      text: messageText,
       time: new Date().toISOString(),
     }
+    
+    // Save state before sending for rollback on error
+    const previousMessages = messages
     const updated = [...messages, newMsg]
     saveMessages(updated)
-    const userText = text.trim().toLowerCase()
     setText('')
 
-    // Trigger simulated reply after 1 second
-    setTimeout(() => {
-      let responseText = `That's interesting! Let's check our textbook notes or compare in the library tomorrow.`
-      if (userText.includes('hi') || userText.includes('hello') || userText.includes('hey')) {
-        responseText = `Hey there! How is the revision going? Let me know if you are stuck on any topic.`
-      } else if (userText.includes('help') || userText.includes('doubt') || userText.includes('explain') || userText.includes('understand')) {
-        responseText = `Sure! I reviewed this unit yesterday. Let me know which formula or theorem is confusing you.`
-      } else if (userText.includes('thanks') || userText.includes('thank you') || userText.includes('ty')) {
-        responseText = `Anytime! We are all in this together. Let's secure these grades!`
-      } else if (userText.includes('math') || userText.includes('formula') || userText.includes('solve')) {
-        responseText = `Ah! For that formula, make sure to apply the integration by parts or check JNTU's model papers.`
-      } else if (userText.includes('class') || userText.includes('notes') || userText.includes('slide')) {
-        responseText = `Yes, I have high-res photos of the chalkboard! I can send them over later tonight.`
+    if (isRealUser) {
+      try {
+        const res = await fetch(`/api/classrooms/${classroomId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receiver_id: recipient.id, body: messageText }),
+        })
+        if (!res.ok) {
+          // Rollback on error
+          saveMessages(previousMessages)
+          const errData = await res.json().catch(() => ({}))
+          alert(errData.error || 'Failed to send message.')
+          return
+        } else {
+          const data = await res.json()
+          if (data?.message) {
+            // Replace temporary client message with official DB record
+            const dbMsg: ChatMessage = {
+              id: data.message.id,
+              sender: 'me',
+              text: data.message.body,
+              time: data.message.created_at,
+            }
+            saveMessages([...previousMessages, dbMsg])
+          }
+        }
+      } catch (err: any) {
+        saveMessages(previousMessages)
+        alert(err.message || 'Network error — failed to send message.')
+        return
       }
+    }
 
-      const reply: ChatMessage = {
-        id: Math.random().toString(36).substring(2, 11),
-        sender: 'other',
-        text: responseText,
-        time: new Date().toISOString(),
-      }
-      saveMessages([...updated, reply])
-    }, 1000)
+    // Trigger simulated response (demo/fallback mode or for simulated users)
+    if (!isRealUser) {
+      setTimeout(() => {
+        const userText = messageText.toLowerCase()
+        let responseText = `That's interesting! Let's check our textbook notes or compare in the library tomorrow.`
+        if (userText.includes('hi') || userText.includes('hello') || userText.includes('hey')) {
+          responseText = `Hey there! How is the revision going? Let me know if you are stuck on any topic.`
+        } else if (userText.includes('help') || userText.includes('doubt') || userText.includes('explain') || userText.includes('understand')) {
+          responseText = `Sure! I reviewed this unit yesterday. Let me know which formula or theorem is confusing you.`
+        } else if (userText.includes('thanks') || userText.includes('thank you') || userText.includes('ty')) {
+          responseText = `Anytime! We are all in this together. Let's secure these grades!`
+        } else if (userText.includes('math') || userText.includes('formula') || userText.includes('solve')) {
+          responseText = `Ah! For that formula, make sure to apply the integration by parts or check JNTU's model papers.`
+        } else if (userText.includes('class') || userText.includes('notes') || userText.includes('slide')) {
+          responseText = `Yes, I have high-res photos of the chalkboard! I can send them over later tonight.`
+        }
+
+        const reply: ChatMessage = {
+          id: Math.random().toString(36).substring(2, 11),
+          sender: 'other',
+          text: responseText,
+          time: new Date().toISOString(),
+        }
+        saveMessages([...updated, reply])
+      }, 1000)
+    }
   }
 
   return (

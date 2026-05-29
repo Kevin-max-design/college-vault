@@ -14,7 +14,7 @@ export default function AdminPostsPage() {
     fetch('/api/admin/posts').then(r => r.json()).then(d => { setPosts(d.posts ?? []); setLoading(false) })
   }, [])
 
-  const filtered = filter === 'all' ? posts : posts.filter(p => p.type === filter)
+  const filtered = filter === 'all' ? posts : posts.filter(p => (p.type === 'thread' ? 'reply' : p.type) === filter)
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this post?')) return
@@ -32,14 +32,14 @@ export default function AdminPostsPage() {
     }
   }
 
-  const TYPE_COLORS: Record<string, string> = { doubt: '#ba1a1a', material: '#00595c', announcement: '#855300', thread: '#3e4949' }
+  const TYPE_COLORS: Record<string, string> = { doubt: '#ba1a1a', material: '#00595c', announcement: '#855300', thread: '#3e4949', reply: '#3e4949' }
 
   return (
     <div>
       <h1 style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 800, fontSize: '2rem', color: '#00595c', marginBottom: 24 }}>Posts & Doubts</h1>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-        {['all', 'doubt', 'thread', 'material', 'announcement'].map(f => (
+        {['all', 'doubt', 'reply', 'material', 'announcement'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '5px 14px', borderRadius: 9999, border: '2px solid', cursor: 'pointer',
             borderColor: filter === f ? '#00595c' : '#bec9c9',
@@ -61,8 +61,8 @@ export default function AdminPostsPage() {
             <div key={p.id} style={{ background: '#fbf9f4', border: '2px solid #bec9c9', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: TYPE_COLORS[p.type] ?? '#6e7979', padding: '2px 8px', border: `1.5px solid ${TYPE_COLORS[p.type] ?? '#bec9c9'}` }}>
-                    {p.type}
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: TYPE_COLORS[p.type === 'thread' ? 'reply' : p.type] ?? '#6e7979', padding: '2px 8px', border: `1.5px solid ${TYPE_COLORS[p.type === 'thread' ? 'reply' : p.type] ?? '#bec9c9'}` }}>
+                    {p.type === 'thread' ? 'reply' : p.type}
                   </span>
                   {p.resolved && <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', fontWeight: 700, color: '#6e7979', textTransform: 'uppercase' }}>✓ Resolved</span>}
                   <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#6e7979' }}>by {p.author?.full_name ?? 'Anonymous'}</span>

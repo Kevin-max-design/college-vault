@@ -20,7 +20,7 @@ export default function ModulesSection() {
       responsibilities: [
         "Create Study / Project classrooms",
         "Invite members by role or email",
-        "Thread-based posts with nested comments",
+        "Doubt-based posts with nested replies",
         "File attachments (S3 signed URLs)",
       ],
       tech: ["MongoDB", "S3", "multer", "mongoose"],

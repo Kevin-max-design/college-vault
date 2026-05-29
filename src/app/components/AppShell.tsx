@@ -66,7 +66,7 @@ const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
     id: 'n-2',
     type: 'comment_reply',
     title: 'Reply to Comment',
-    body: 'u/Frontend_Ninja replied to your thread in Campus Vault Redesign: "We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs!"',
+    body: 'u/Frontend_Ninja replied to your doubt in Campus Vault Redesign: "We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs!"',
     time: '5m ago',
     read: false,
     link: '/classrooms/proj-vault-redesign',
@@ -160,8 +160,9 @@ export default function AppShell({
   
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Initialize and synchronize with LocalStorage
+  // Initialize and synchronize with LocalStorage + Supabase
   useEffect(() => {
+    // 1. Immediate fallback to LocalStorage cache
     const stored = localStorage.getItem('cv_notifications')
     if (stored) {
       try {
@@ -173,6 +174,19 @@ export default function AppShell({
       setNotifications(DEFAULT_NOTIFICATIONS)
       localStorage.setItem('cv_notifications', JSON.stringify(DEFAULT_NOTIFICATIONS))
     }
+
+    // 2. Fetch fresh notifications from Supabase
+    fetch('/api/notifications')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.notifications)) {
+          // If Supabase has notifications, use them and update cache
+          const finalNotifs = data.notifications.length > 0 ? data.notifications : (stored ? JSON.parse(stored) : DEFAULT_NOTIFICATIONS)
+          setNotifications(finalNotifs)
+          localStorage.setItem('cv_notifications', JSON.stringify(finalNotifs))
+        }
+      })
+      .catch(err => console.error('Failed to sync notifications:', err))
   }, [])
 
   // Auto-close dropdown when clicking outside
@@ -222,7 +236,7 @@ export default function AppShell({
     }
   }, [])
 
-  const pushNewNotification = (item: NotificationItem) => {
+  const pushNewNotification = async (item: NotificationItem) => {
     setNotifications(prev => {
       if (prev.some(n => n.body === item.body)) return prev // dedupe
       const updated = [item, ...prev]
@@ -232,20 +246,70 @@ export default function AppShell({
     setToast(item)
     // Clear toast automatically after 5 seconds
     setTimeout(() => setToast(null), 5000)
+
+    // Persist in Supabase
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: item.type,
+          title: item.title,
+          body: item.body,
+          link: item.link
+        })
+      })
+    } catch (e) {
+      console.error('Failed to persist notification in Supabase:', e)
+    }
   }
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
+    const previous = notifications
     const updated = notifications.map(n => ({ ...n, read: true }))
     setNotifications(updated)
     localStorage.setItem('cv_notifications', JSON.stringify(updated))
+
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      if (!res.ok) {
+        setNotifications(previous)
+        localStorage.setItem('cv_notifications', JSON.stringify(previous))
+      }
+    } catch (e) {
+      setNotifications(previous)
+      localStorage.setItem('cv_notifications', JSON.stringify(previous))
+      console.error(e)
+    }
   }
 
-  const handleNotificationClick = (item: NotificationItem) => {
+  const handleNotificationClick = async (item: NotificationItem) => {
+    const previous = notifications
     const updated = notifications.map(n => n.id === item.id ? { ...n, read: true } : n)
     setNotifications(updated)
     localStorage.setItem('cv_notifications', JSON.stringify(updated))
     setShowPanel(false)
     router.push(item.link)
+
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id })
+      })
+      if (!res.ok) {
+        setNotifications(previous)
+        localStorage.setItem('cv_notifications', JSON.stringify(previous))
+      }
+    } catch (e) {
+      setNotifications(previous)
+      localStorage.setItem('cv_notifications', JSON.stringify(previous))
+      console.error(e)
+    }
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
