@@ -24,39 +24,20 @@ DROP POLICY IF EXISTS "Allow authenticated delete access on avatars" ON storage.
 -- files are served automatically via public CDN URLs without requiring an RLS SELECT policy.
 -- Removing the SELECT policy prevents clients from listing all files in the bucket.
 
--- 3.2  Authenticated Insert: Users can only upload their own avatar files.
--- Supports both folder-prefixed 'avatars/user_id.ext' and plain 'user_id.ext' paths.
+-- 3.1  Authenticated Insert: Any logged-in student or faculty can upload avatar files to this bucket.
 CREATE POLICY "Allow authenticated upload access on avatars"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (
-  bucket_id = 'avatars' AND (
-    (auth.uid())::text = split_part(name, '.', 1)
-    OR
-    (auth.uid())::text = split_part(split_part(name, '/', 2), '.', 1)
-  )
-);
+WITH CHECK ( bucket_id = 'avatars' );
 
--- 3.3  Authenticated Update: Users can only update their own avatar files.
+-- 3.2  Authenticated Update: Any logged-in student or faculty can update avatar files in this bucket.
 CREATE POLICY "Allow authenticated update access on avatars"
 ON storage.objects FOR UPDATE
 TO authenticated
-USING (
-  bucket_id = 'avatars' AND (
-    (auth.uid())::text = split_part(name, '.', 1)
-    OR
-    (auth.uid())::text = split_part(split_part(name, '/', 2), '.', 1)
-  )
-);
+USING ( bucket_id = 'avatars' );
 
--- 3.4  Authenticated Delete: Users can only delete their own avatar files.
+-- 3.3  Authenticated Delete: Any logged-in student or faculty can delete avatar files in this bucket.
 CREATE POLICY "Allow authenticated delete access on avatars"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (
-  bucket_id = 'avatars' AND (
-    (auth.uid())::text = split_part(name, '.', 1)
-    OR
-    (auth.uid())::text = split_part(split_part(name, '/', 2), '.', 1)
-  )
-);
+USING ( bucket_id = 'avatars' );
