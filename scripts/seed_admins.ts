@@ -11,13 +11,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 const ADMINS = [
-  { email: 'principal@campusvault.edu', password: 'Password123!', role: 'principal', name: 'Dr. Principal', department: 'MATHS' },
-  { email: 'hod.cse@campusvault.edu', password: 'Password123!', role: 'hod', name: 'HOD Computer Science', department: 'CSE' },
-  { email: 'hod.cseds@campusvault.edu', password: 'Password123!', role: 'hod', name: 'Dr. DS HOD', department: 'CSE-DS' },
-  { email: 'faculty.cs101@campusvault.edu', password: 'Password123!', role: 'faculty', name: 'Prof. CS101', department: 'CSE' },
-  { email: 'admin.ao@campusvault.edu', password: 'Password123!', role: 'ao_office', name: 'Admin Officer', department: '' },
-  { email: 'admin.exam@campusvault.edu', password: 'Password123!', role: 'exam_cell', name: 'Exam Controller', department: '' },
-  { email: 'admin.placement@campusvault.edu', password: 'Password123!', role: 'placement', name: 'Placement Cell', department: '' },
+  { email: 'principal@principal.rgmcet.edu.in', password: 'Password123!', role: 'principal', name: 'Dr. Principal', department: 'MATHS' },
+  { email: 'hod.cse@hod.rgmcet.edu.in', password: 'Password123!', role: 'hod', name: 'HOD Computer Science', department: 'CSE' },
+  { email: 'hod.cseds@hod.rgmcet.edu.in', password: 'Password123!', role: 'hod', name: 'Dr. DS HOD', department: 'CSE-DS' },
+  { email: 'faculty.cs101@faculty.rgmcet.edu.in', password: 'Password123!', role: 'faculty', name: 'Prof. CS101', department: 'CSE' },
+  { email: 'admin.ao@ao-office.rgmcet.edu.in', password: 'Password123!', role: 'ao_office', name: 'Admin Officer', department: '' },
+  { email: 'admin.exam@exam-cell.rgmcet.edu.in', password: 'Password123!', role: 'exam_cell', name: 'Exam Controller', department: '' },
+  { email: 'admin.placement@placement.rgmcet.edu.in', password: 'Password123!', role: 'placement', name: 'Placement Cell', department: '' },
 ]
 
 async function seedAdmins() {
@@ -32,7 +32,7 @@ async function seedAdmins() {
     })
 
     if (authError) {
-      if (authError.message.includes('already registered')) {
+      if (authError.message.includes('already registered') || authError.message.includes('already been registered') || authError.code === 'email_exists') {
         console.log(`User ${admin.email} already exists. Attempting to update profile...`)
         // We need to fetch the existing user's ID to update their profile role/department
         const { data: { users } } = await supabase.auth.admin.listUsers()

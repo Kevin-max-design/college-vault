@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 
 /* ── Bottom nav tabs matching the PNG ───────────────────────────── */
 interface NavItem {
@@ -22,12 +22,15 @@ const NAV_ITEMS: NavItem[] = [
 /* ── Notification Model ─────────────────────────────────────────── */
 interface NotificationItem {
   id: string
-  type: 'classroom_post' | 'comment_reply' | 'message' | 'project_update' | 'admin_announcement' | 'social_update'
+  type: string
   title: string
   body: string
   time: string
   read: boolean
   link: string
+  category?: string
+  priority?: string
+  source?: string
 }
 
 /* ── Palette ────────────────────────────────────────────────────── */
@@ -43,69 +46,137 @@ const C = {
   activeTabBg:'#EAE4D8',
 }
 
-const NOTIFICATION_ICONS: Record<NotificationItem['type'], { icon: string; color: string; bg: string }> = {
-  classroom_post:     { icon: 'school', color: '#00595c', bg: '#e8f5f5' },
-  comment_reply:      { icon: 'forum', color: '#855300', bg: '#fef5e7' },
-  message:            { icon: 'mail', color: '#fea619', bg: '#fffdf5' },
-  project_update:     { icon: 'rocket_launch', color: '#0d7377', bg: '#eafaf9' },
-  admin_announcement: { icon: 'campaign', color: '#ba1a1a', bg: '#fdf2f2' },
-  social_update:      { icon: 'diversity_3', color: '#3e4949', bg: '#f0eee9' },
+/* ── Category → Icon / Color mapping ──────────────────────────── */
+const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
+  principal_announcement: { icon: 'campaign',      color: '#ba1a1a', bg: '#fdf2f2' },
+  hod_notice:            { icon: 'shield',        color: '#6a1b9a', bg: '#f3e5f5' },
+  faculty_announcement:  { icon: 'school',        color: '#00595c', bg: '#e8f5f5' },
+  deadline:              { icon: 'schedule',       color: '#e65100', bg: '#fff3e0' },
+  market_message:        { icon: 'mail',           color: '#fea619', bg: '#fffdf5' },
+  listing_request:       { icon: 'shopping_bag',   color: '#855300', bg: '#fef5e7' },
+  classroom_reply:       { icon: 'forum',          color: '#0d7377', bg: '#eafaf9' },
+  material_upload:       { icon: 'upload_file',    color: '#2e7d32', bg: '#e8f5e9' },
+  doubt_resolved:        { icon: 'check_circle',   color: '#1b5e20', bg: '#e8f5e9' },
+  general:               { icon: 'notifications',  color: '#3e4949', bg: '#f0eee9' },
 }
+
+/* Fallback map for old type-based notifications that don't have a category */
+const TYPE_TO_CATEGORY: Record<string, string> = {
+  message:            'market_message',
+  request:            'listing_request',
+  resolved:           'doubt_resolved',
+  classroom_reply:    'classroom_reply',
+  classroom_doubt:    'classroom_reply',
+  announcement:       'faculty_announcement',
+  material:           'material_upload',
+  notice:             'general',
+  classroom_post:     'classroom_reply',
+  comment_reply:      'classroom_reply',
+  project_update:     'general',
+  admin_announcement: 'principal_announcement',
+  social_update:      'general',
+}
+
+function getCategoryIcon(item: NotificationItem) {
+  const cat = item.category || TYPE_TO_CATEGORY[item.type] || 'general'
+  return CATEGORY_ICONS[cat] || CATEGORY_ICONS.general
+}
+
+/* ── Priority accent colors ───────────────────────────────────── */
+const PRIORITY_STYLES: Record<string, { border: string; label: string; labelColor: string; labelBg: string }> = {
+  urgent: { border: '#d32f2f', label: 'URGENT', labelColor: '#fff', labelBg: '#d32f2f' },
+  high:   { border: '#f57c00', label: 'HIGH',   labelColor: '#fff', labelBg: '#f57c00' },
+  normal: { border: 'transparent', label: '',   labelColor: '', labelBg: '' },
+  low:    { border: 'transparent', label: '',   labelColor: '', labelBg: '' },
+}
+
+/* ── Notification filter tabs ─────────────────────────────────── */
+type FilterTab = 'all' | 'important' | 'academic' | 'market' | 'classroom'
+
+const FILTER_TABS: { key: FilterTab; label: string; icon: string }[] = [
+  { key: 'all',        label: 'All',        icon: 'list' },
+  { key: 'important',  label: 'Important',  icon: 'priority_high' },
+  { key: 'academic',   label: 'Academic',   icon: 'school' },
+  { key: 'market',     label: 'Market',     icon: 'storefront' },
+  { key: 'classroom',  label: 'Classroom',  icon: 'forum' },
+]
+
+const ACADEMIC_CATEGORIES = new Set(['principal_announcement', 'hod_notice', 'faculty_announcement', 'deadline', 'material_upload'])
+const MARKET_CATEGORIES = new Set(['market_message', 'listing_request'])
+const CLASSROOM_CATEGORIES = new Set(['classroom_reply', 'material_upload', 'doubt_resolved'])
 
 const DEFAULT_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'n-1',
     type: 'message',
-    title: 'Personal Message',
+    title: 'New Market Message',
     body: 'u/Maths_Guru_88: "Hey Alex! Is that Engineering Dynamics textbook still available for $45? I can meet you at the library today."',
     time: 'just now',
     read: false,
-    link: '/vault',
+    link: '/vault?view=inbox',
+    category: 'market_message',
+    priority: 'normal',
+    source: 'market',
   },
   {
     id: 'n-2',
-    type: 'comment_reply',
-    title: 'Reply to Comment',
+    type: 'classroom_reply',
+    title: 'Reply to Your Doubt',
     body: 'u/Frontend_Ninja replied to your doubt in Campus Vault Redesign: "We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs!"',
     time: '5m ago',
     read: false,
     link: '/classrooms/proj-vault-redesign',
+    category: 'classroom_reply',
+    priority: 'normal',
+    source: 'classroom',
   },
   {
     id: 'n-3',
-    type: 'admin_announcement',
-    title: 'Admin Announcement',
+    type: 'notice',
+    title: '📢 Principal: Important Announcement',
     body: 'Administrator: "All campus registers have been cleared of legacy OTP entries. Direct student password registrations are now live college-wide!"',
     time: '1h ago',
     read: false,
     link: '/home',
+    category: 'principal_announcement',
+    priority: 'urgent',
+    source: 'principal',
   },
   {
     id: 'n-4',
-    type: 'project_update',
-    title: 'Project Update',
-    body: 'Campus Vault Redesign: "Lead Architect u/Lead_Architect_99 enabled dynamic imports & route-splitting for all router views."',
+    type: 'material',
+    title: 'New Study Material',
+    body: 'New study resource shared in Data Structures: "Dijkstra vs Bellman-Ford comparison chart with examples"',
     time: '2h ago',
     read: true,
-    link: '/classrooms/proj-vault-redesign',
+    link: '/classrooms',
+    category: 'material_upload',
+    priority: 'normal',
+    source: 'classroom',
   },
   {
     id: 'n-5',
-    type: 'classroom_post',
-    title: 'New Classroom Post',
-    body: 'New doubt in Data Structures & Algorithms: "How does Dijkstra\'s algorithm handle negative weights? Is Bellman-Ford required?"',
+    type: 'request',
+    title: 'New Buy Request',
+    body: 'u/StudyBuddy_99 requested to buy your listing: "Engineering Dynamics Textbook (Meriam, 9th Ed)"',
     time: '1d ago',
     read: true,
-    link: '/classrooms',
+    link: '/vault?view=inbox',
+    category: 'listing_request',
+    priority: 'high',
+    source: 'market',
   },
   {
     id: 'n-6',
-    type: 'social_update',
-    title: 'Social Feed Update',
-    body: 'Social: "Your post about the Precision Caliper Set has received 15 new upvotes and is now trending!"',
+    type: 'resolved',
+    title: 'Doubt Resolved ✓',
+    body: 'Your doubt about Dijkstra\'s algorithm has been marked as resolved by Prof. Kumar.',
     time: '2d ago',
     read: true,
-    link: '/bulletin',
+    link: '/classrooms',
+    category: 'doubt_resolved',
+    priority: 'normal',
+    source: 'classroom',
   }
 ]
 
@@ -156,6 +227,7 @@ export default function AppShell({
   const router = useRouter()
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [showPanel, setShowPanel] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
   const [toast, setToast] = useState<NotificationItem | null>(null)
   
   const panelRef = useRef<HTMLDivElement>(null)
@@ -387,6 +459,21 @@ export default function AppShell({
 
   const unreadCount = notifications.filter(n => !n.read).length
 
+  // Memoized filtered notifications based on active tab
+  const filteredNotifications = useMemo(() => {
+    if (activeFilter === 'all') return notifications
+    if (activeFilter === 'important') {
+      return notifications.filter(n => n.priority === 'urgent' || n.priority === 'high')
+    }
+    return notifications.filter(n => {
+      const cat = n.category || TYPE_TO_CATEGORY[n.type] || 'general'
+      if (activeFilter === 'academic') return ACADEMIC_CATEGORIES.has(cat)
+      if (activeFilter === 'market') return MARKET_CATEGORIES.has(cat)
+      if (activeFilter === 'classroom') return CLASSROOM_CATEGORIES.has(cat)
+      return true
+    })
+  }, [notifications, activeFilter])
+
   return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
@@ -506,6 +593,46 @@ export default function AppShell({
                 )}
               </div>
 
+              {/* ── Filter Tabs ──────────────────────────────────── */}
+              <div style={{
+                display: 'flex', gap: 0,
+                borderBottom: '1.5px solid #bec9c9',
+                background: '#faf8f3',
+                overflowX: 'auto',
+              }}>
+                {FILTER_TABS.map(tab => {
+                  const isActive = activeFilter === tab.key
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveFilter(tab.key)}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 3,
+                        padding: '7px 4px',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: isActive ? '2.5px solid #00595c' : '2.5px solid transparent',
+                        color: isActive ? '#00595c' : '#7A7A7A',
+                        fontFamily: 'var(--font-jakarta)',
+                        fontSize: '0.6rem',
+                        fontWeight: isActive ? 800 : 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        whiteSpace: 'nowrap',
+                        letterSpacing: '0.03em',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{tab.icon}</span>
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+
               {/* Panel Body */}
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
                 
@@ -597,14 +724,17 @@ export default function AppShell({
                     )}
                   </>
                 )}
-                {notifications.length === 0 ? (
+                {filteredNotifications.length === 0 ? (
                   <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 32, display: 'block', marginBottom: 6 }}>notifications_off</span>
-                    All caught up! No notifications.
+                    {activeFilter === 'all' ? 'All caught up! No notifications.' : `No ${activeFilter} notifications.`}
                   </div>
                 ) : (
-                  notifications.map(item => {
-                    const cfg = NOTIFICATION_ICONS[item.type] ?? NOTIFICATION_ICONS.social_update
+                  filteredNotifications.map(item => {
+                    const cfg = getCategoryIcon(item)
+                    const pri = PRIORITY_STYLES[item.priority ?? 'normal'] ?? PRIORITY_STYLES.normal
+                    const isUrgentOrHigh = item.priority === 'urgent' || item.priority === 'high'
+                    const isLow = item.priority === 'low'
                     return (
                       <div
                         key={item.id}
@@ -612,15 +742,17 @@ export default function AppShell({
                         style={{
                           padding: '12px 14px',
                           borderBottom: '1px dashed #bec9c9',
-                          background: item.read ? '#ffffff' : '#fffdf5',
+                          borderLeft: isUrgentOrHigh ? `3.5px solid ${pri.border}` : '3.5px solid transparent',
+                          background: item.read ? '#ffffff' : (item.priority === 'urgent' ? '#fff8f8' : '#fffdf5'),
                           cursor: 'pointer',
                           display: 'flex', gap: 10,
                           transition: 'background 0.2s',
+                          opacity: isLow && item.read ? 0.7 : 1,
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = '#fcfbf7'}
-                        onMouseLeave={e => e.currentTarget.style.background = item.read ? '#ffffff' : '#fffdf5'}
+                        onMouseLeave={e => e.currentTarget.style.background = item.read ? '#ffffff' : (item.priority === 'urgent' ? '#fff8f8' : '#fffdf5')}
                       >
-                        {/* Icon */}
+                        {/* Category Icon */}
                         <div style={{
                           width: 32, height: 32, borderRadius: '50%',
                           background: cfg.bg, display: 'flex', alignItems: 'center',
@@ -632,11 +764,29 @@ export default function AppShell({
 
                         {/* Text details */}
                         <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-                            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 800, color: item.read ? '#3e4949' : '#00595c' }}>
-                              {item.title}
-                            </span>
-                            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.58rem', color: '#6e7979' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, gap: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: 1 }}>
+                              <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 800, color: item.read ? '#3e4949' : '#00595c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.title}
+                              </span>
+                              {isUrgentOrHigh && pri.label && (
+                                <span style={{
+                                  fontSize: '0.5rem',
+                                  fontWeight: 900,
+                                  fontFamily: 'var(--font-jakarta)',
+                                  color: pri.labelColor,
+                                  background: pri.labelBg,
+                                  padding: '1px 5px',
+                                  borderRadius: 3,
+                                  letterSpacing: '0.05em',
+                                  flexShrink: 0,
+                                  lineHeight: 1.5,
+                                }}>
+                                  {pri.label}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.58rem', color: '#6e7979', flexShrink: 0 }}>
                               {item.time}
                             </span>
                           </div>
@@ -698,17 +848,30 @@ export default function AppShell({
             }
           `}</style>
           
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: NOTIFICATION_ICONS[toast.type].bg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `1.5px solid ${NOTIFICATION_ICONS[toast.type].color}`,
-            flexShrink: 0,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: NOTIFICATION_ICONS[toast.type].color }}>
-              {NOTIFICATION_ICONS[toast.type].icon}
-            </span>
-          </div>
+          {(() => {
+            const toastCfg = getCategoryIcon(toast)
+            const toastPri = PRIORITY_STYLES[toast.priority ?? 'normal'] ?? PRIORITY_STYLES.normal
+            return (
+              <>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: toastCfg.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1.5px solid ${toastCfg.color}`,
+                  flexShrink: 0,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: toastCfg.color }}>
+                    {toastCfg.icon}
+                  </span>
+                </div>
+                {toastPri.label && (
+                  <div style={{ position: 'absolute', top: -6, right: -6, fontSize: '0.48rem', fontWeight: 900, color: toastPri.labelColor, background: toastPri.labelBg, padding: '1px 5px', borderRadius: 3, letterSpacing: '0.05em', fontFamily: 'var(--font-jakarta)' }}>
+                    {toastPri.label}
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
           <div style={{ flex: 1 }}>
             <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 800, color: '#00595c', display: 'block', marginBottom: 2 }}>

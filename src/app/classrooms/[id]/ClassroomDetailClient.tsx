@@ -109,7 +109,6 @@ export function flattenPosts(posts: Post[]): Post[] {
   return result
 }
 
-/* ── Clean Doubt Dashboard Card ─────────────────────────────────────── */
 function PostCard({ 
   post, 
   classroomId, 
@@ -118,12 +117,14 @@ function PostCard({
   currentUserHandle,
   currentUserId,
   onResolve, 
-  onVote 
+  onVote,
+  onDelete
 }: {
   post: Post; classroomId: string; userId: string; userRole: string
   currentUserHandle: string; currentUserId: string
   onResolve: (id: string) => void
   onVote: (id: string, direction: 'up' | 'down') => void
+  onDelete: (id: string) => void
 }) {
   const router = useRouter()
   const isMaterial = post.type === 'material' || (post.attachments && post.attachments.length > 0)
@@ -145,6 +146,7 @@ function PostCard({
   }
 
   const isMe = authorHandle === currentUserHandle || authorId === currentUserId || authorId === userId || authorId === 'mock-user'
+  const canDelete = isMe || ['faculty', 'hod', 'principal'].includes(userRole)
 
   // Upvotes and Downvotes
   const myUpvoted = post.reactions.some(r => r.user_id === userId && r.emoji === 'up')
@@ -159,6 +161,27 @@ function PostCard({
 
   function navigateToPost() {
     router.push(`/classrooms/${classroomId}/posts/${post.id}`)
+  }
+
+  async function downloadFile(url: string, filename: string) {
+    try {
+      if (url === '#') {
+        alert("Downloads are not available for simulation seed files.");
+        return;
+      }
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || 'download';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      window.open(url, '_blank');
+    }
   }
 
   return (
@@ -184,7 +207,7 @@ function PostCard({
       }
     }}
     >
-      {/* Header: type badge + time */}
+      {/* Header: type badge + time + optional delete */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 13, color: post.resolved ? '#6e7979' : meta.color }}>
@@ -194,7 +217,34 @@ function PostCard({
             {post.resolved ? 'Resolved' : meta.label}
           </span>
         </div>
-        <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+          <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', color: '#6e7979' }}>{timeAgo(post.created_at)}</span>
+          {canDelete && (
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                onDelete(post.id)
+              }}
+              title="Delete Post"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ba1a1a',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 2,
+                borderRadius: 4,
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#ffebeb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content preview */}
@@ -221,33 +271,55 @@ function PostCard({
             const icon = isPdf ? 'picture_as_pdf' : isPpt ? 'present_to_all' : 'description'
             const iconColor = isPdf ? '#ba1a1a' : isPpt ? '#fea619' : '#00595c'
             return (
-              <a 
-                key={i}
-                href={att.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()} // prevent card navigation trigger
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '4px 8px', border: '1px solid #00595c',
-                  background: '#ffffff', color: '#1b1c19',
-                  fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
-                  fontWeight: 700, textDecoration: 'none',
-                  boxShadow: '1.5px 1.5px 0 0 #00595c',
-                  transition: 'transform 0.1s, box-shadow 0.1s',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-1px)'
-                  e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'none'
-                  e.currentTarget.style.boxShadow = '1.5px 1.5px 0 0 #00595c'
-                }}
+              <div 
+                key={i} 
+                onClick={e => e.stopPropagation()} 
+                style={{ display: 'inline-flex', alignItems: 'stretch' }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 13, color: iconColor }}>{icon}</span>
-                <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
-              </a>
+                <a 
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '4px 8px', border: '1px solid #00595c',
+                    background: '#ffffff', color: '#1b1c19',
+                    fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                    fontWeight: 700, textDecoration: 'none',
+                    boxShadow: '1.5px 1.5px 0 0 #00595c',
+                    transition: 'transform 0.1s, box-shadow 0.1s',
+                    borderRight: 'none',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.boxShadow = '2px 2px 0 0 #00595c'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'none'
+                    e.currentTarget.style.boxShadow = '1.5px 1.5px 0 0 #00595c'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13, color: iconColor }}>{icon}</span>
+                  <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                </a>
+                <button
+                  title="Download File"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    downloadFile(att.url, att.name)
+                  }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '4px 6px', border: '1px solid #00595c',
+                    background: '#fea619', color: '#684000',
+                    cursor: 'pointer',
+                    boxShadow: '1.5px 1.5px 0 0 #00595c',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>download</span>
+                </button>
+              </div>
             )
           })}
         </div>
@@ -600,6 +672,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   const [filter, setFilter] = useState<'all' | 'doubt' | 'material'>('all')
   const [seatCode, setSeatCode] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   
   // Custom unique identifiers (Reddit style) per classroom entry
   const [currentUserId, setCurrentUserId] = useState<string>(userId || 'mock-user')
@@ -612,6 +685,34 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
   // In normal operation, page.tsx resolves seed slugs to real UUIDs so this is always false.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
+
+  const executeDeletePost = useCallback(async (postId: string) => {
+    // Stateful Optimistic UI Update
+    const previousPosts = posts
+    setPosts(prev => prev.filter(p => p.id !== postId))
+    setToast({ type: 'success', message: 'Post deleted' })
+    setTimeout(() => setToast(null), 3000)
+
+    if (isSeedClassroom) return
+
+    try {
+      const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        // Rollback state on failure
+        setPosts(previousPosts)
+        const errData = await res.json().catch(() => ({}))
+        setToast({ type: 'error', message: errData.error || 'Could not delete post.' })
+        setTimeout(() => setToast(null), 5000)
+      } else {
+        router.refresh()
+      }
+    } catch (err: any) {
+      // Rollback state on network/unexpected failure
+      setPosts(previousPosts)
+      setToast({ type: 'error', message: 'Could not delete post' })
+      setTimeout(() => setToast(null), 5000)
+    }
+  }, [isSeedClassroom, posts, router])
 
   // Initialize dynamic session nickname upon classroom entry
   useEffect(() => {
@@ -1159,6 +1260,7 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
               currentUserId={currentUserId}
               onResolve={handleResolve}
               onVote={handleVote}
+              onDelete={setDeleteConfirmId}
             />
           ))}
         </div>
@@ -1175,6 +1277,54 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
           onPosted={handlePosted}
           isSeedClassroom={isSeedClassroom}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,89,92,0.6)',
+          backdropFilter: 'blur(4px)', zIndex: 300, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{
+            background: '#fbf9f4', border: '3px solid #00595c',
+            boxShadow: '6px 6px 0 0 #00595c', padding: 24,
+            maxWidth: 400, width: '100%', fontFamily: 'var(--font-jakarta)'
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.25rem', fontWeight: 800, color: '#ba1a1a', margin: '0 0 10px 0' }}>
+              Confirm Deletion
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#3e4949', lineHeight: 1.5, margin: '0 0 20px 0' }}>
+              Delete this post? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                style={{
+                  padding: '8px 16px', background: 'transparent', border: '2px solid #bec9c9',
+                  color: '#6e7979', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
+                  fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const targetId = deleteConfirmId
+                  setDeleteConfirmId(null)
+                  executeDeletePost(targetId)
+                }}
+                style={{
+                  padding: '8px 16px', background: '#ba1a1a', border: '2px solid #00595c',
+                  color: '#fff', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem',
+                  fontWeight: 700, cursor: 'pointer', boxShadow: '2px 2px 0 0 #00595c',
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

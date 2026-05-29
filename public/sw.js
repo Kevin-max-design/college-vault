@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campusvault-v1'
+const CACHE_NAME = 'campusvault-v2'
 
 // Static assets to pre-cache
 const STATIC_ASSETS = [
@@ -67,16 +67,25 @@ self.addEventListener('push', (event) => {
 
   try {
     const payload = event.data.json()
-    const { title, body, link } = payload
+    const { title, body, link, category, priority } = payload
+
+    // Determine if this notification should persist until dismissed
+    const isUrgent = priority === 'urgent' || priority === 'high'
 
     const options = {
       body: body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       data: {
-        link: link || '/'
+        link: link || '/',
+        category: category || 'general',
+        priority: priority || 'normal',
       },
-      vibrate: [100, 50, 100],
+      // Group notifications by category so they don't flood
+      tag: category || 'general',
+      // Urgent/High priority notifications persist until dismissed
+      requireInteraction: isUrgent,
+      vibrate: isUrgent ? [200, 100, 200, 100, 200] : [100, 50, 100],
       actions: [
         { action: 'open', title: 'Open' }
       ]

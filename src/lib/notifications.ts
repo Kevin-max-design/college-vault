@@ -13,13 +13,41 @@ if (vapidPublicKey && vapidPrivateKey) {
   );
 }
 
+/* ── Category & Priority Types ─────────────────────────────────── */
+
+export type NotificationCategory =
+  | 'principal_announcement'
+  | 'hod_notice'
+  | 'faculty_announcement'
+  | 'deadline'
+  | 'market_message'
+  | 'listing_request'
+  | 'classroom_reply'
+  | 'material_upload'
+  | 'doubt_resolved'
+  | 'general';
+
+export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
+
+export type NotificationSource =
+  | 'principal'
+  | 'hod'
+  | 'faculty'
+  | 'system'
+  | 'market'
+  | 'classroom';
+
 export interface CreateNotificationParams {
   userId: string;
   type: string;
   title: string;
   body: string;
   link: string;
-  actorId?: string; // Optional to prevent notifying self
+  actorId?: string;
+  category?: NotificationCategory;
+  priority?: NotificationPriority;
+  source?: NotificationSource;
+  expiresAt?: string; // ISO timestamp
 }
 
 /**
@@ -28,7 +56,13 @@ export interface CreateNotificationParams {
  */
 export async function sendPushToUser(
   userId: string,
-  payload: { title: string; body: string; link: string }
+  payload: {
+    title: string;
+    body: string;
+    link: string;
+    category?: string;
+    priority?: string;
+  }
 ) {
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.warn('Web Push skipped: VAPID keys not configured in server environment.');
@@ -93,28 +127,47 @@ export async function sendPushToUser(
 /**
  * Standard central helper to log an in-app notification in DB and dispatch a Web Push.
  * Ensures the sender/actor is never notified of their own actions.
+ *
+ * Supports category, priority, source, and optional expiresAt for structured notifications.
  */
 export async function createNotification(params: CreateNotificationParams) {
-  const { userId, type, title, body, link, actorId } = params;
+  const {
+    userId,
+    type,
+    title,
+    body,
+    link,
+    actorId,
+    category = 'general',
+    priority = 'normal',
+    source,
+    expiresAt,
+  } = params;
 
-  // 8. Do not notify the sender of their own actions
+  // Do not notify the sender of their own actions
   if (actorId && userId === actorId) {
     console.log(`Notification skipped: User ${userId} is the actor.`);
     return null;
   }
 
   try {
-    // 1. Insert into user_notifications
+    // 1. Insert into user_notifications with category & priority
+    const insertPayload: Record<string, unknown> = {
+      user_id: userId,
+      type,
+      title,
+      body,
+      link,
+      read: false,
+      category,
+      priority,
+    };
+    if (source) insertPayload.source = source;
+    if (expiresAt) insertPayload.expires_at = expiresAt;
+
     const { data: notification, error } = await supabaseAdmin
       .from('user_notifications')
-      .insert({
-        user_id: userId,
-        type,
-        title,
-        body,
-        link,
-        read: false
-      })
+      .insert(insertPayload)
       .select('*')
       .single();
 
@@ -123,7 +176,13 @@ export async function createNotification(params: CreateNotificationParams) {
     }
 
     // 2. Dispatch push notification (fire-and-forget, non-blocking)
-    sendPushToUser(userId, { title, body, link }).catch((err) => {
+    sendPushToUser(userId, {
+      title,
+      body,
+      link,
+      category,
+      priority,
+    }).catch((err) => {
       console.error('Async Web Push delivery failed:', err);
     });
 

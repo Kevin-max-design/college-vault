@@ -66,6 +66,8 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatar_url)
   const [hoverAvatar, setHoverAvatar] = useState(false)
+  const [avatarDeleted, setAvatarDeleted] = useState(false)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const totalTrustPoints = gameSessions.reduce((acc, curr) => acc + curr.score, 0)
@@ -87,8 +89,9 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
     try {
       let finalAvatarUrl = profile.avatar_url
 
-      // If a new avatar file was chosen, upload it to Supabase first
-      if (avatarFile) {
+      if (avatarDeleted) {
+        finalAvatarUrl = null
+      } else if (avatarFile) {
         const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
         const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -398,45 +401,86 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (!file) return
-                      setAvatarFile(file)
-                      setAvatarPreview(URL.createObjectURL(file))
+                      setCropImageSrc(URL.createObjectURL(file))
                     }}
                   />
                 </div>
 
-                {/* Explicit Photo Upload Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    background: '#FDFAF5',
-                    border: '1.5px solid #00595c',
-                    boxShadow: '2px 2px 0 0 #00595c',
-                    color: '#00595c',
-                    fontFamily: 'var(--font-jakarta)',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    padding: '6px 14px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    transition: 'background-color 0.15s, color 0.15s'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = '#00595c'
-                    e.currentTarget.style.color = '#ffffff'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = '#FDFAF5'
-                    e.currentTarget.style.color = '#00595c'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload</span>
-                  <span>Upload Photo</span>
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                  {/* Explicit Photo Upload Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      background: '#FDFAF5',
+                      border: '1.5px solid #00595c',
+                      boxShadow: '2px 2px 0 0 #00595c',
+                      color: '#00595c',
+                      fontFamily: 'var(--font-jakarta)',
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      padding: '6px 14px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'background-color 0.15s, color 0.15s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#00595c'
+                      e.currentTarget.style.color = '#ffffff'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FDFAF5'
+                      e.currentTarget.style.color = '#00595c'
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload</span>
+                    <span>Upload Photo</span>
+                  </button>
+
+                  {/* Remove Photo Button */}
+                  {(avatarPreview || profile.avatar_url) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvatarFile(null)
+                        setAvatarPreview(null)
+                        setAvatarDeleted(true)
+                      }}
+                      style={{
+                        background: '#FDFAF5',
+                        border: '1.5px solid #ba1a1a',
+                        boxShadow: '2px 2px 0 0 #ba1a1a',
+                        color: '#ba1a1a',
+                        fontFamily: 'var(--font-jakarta)',
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        padding: '6px 14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        transition: 'background-color 0.15s, color 0.15s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = '#ba1a1a'
+                        e.currentTarget.style.color = '#ffffff'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = '#FDFAF5'
+                        e.currentTarget.style.color = '#ba1a1a'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                      <span>Remove Photo</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -479,6 +523,211 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
           </div>
         </>
       )}
+
+      {cropImageSrc && (
+        <CropModal
+          src={cropImageSrc}
+          onCancel={() => setCropImageSrc(null)}
+          onCrop={(croppedFile) => {
+            setAvatarFile(croppedFile)
+            setAvatarPreview(URL.createObjectURL(croppedFile))
+            setAvatarDeleted(false)
+            setCropImageSrc(null)
+          }}
+        />
+      )}
     </div>
   )
+}
+
+/* ── Premium HTML5 Canvas Avatar Crop Modal ───────────────────────── */
+interface CropModalProps {
+  src: string;
+  onCancel: () => void;
+  onCrop: (croppedFile: File) => void;
+}
+
+function CropModal({ src, onCancel, onCrop }: CropModalProps) {
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hasError, setHasError] = useState(false);
+
+  const handleStart = (clientX: number, clientY: number) => {
+    setIsDragging(true);
+    setDragStart({ x: clientX - position.x, y: clientY - position.y });
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!isDragging) return;
+    setPosition({
+      x: clientX - dragStart.x,
+      y: clientY - dragStart.y
+    });
+  };
+
+  const handleEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleCrop = () => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = src;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, 512, 512);
+
+      const r = img.naturalWidth / img.naturalHeight;
+      let w = 220;
+      let h = 220;
+      if (r > 1) {
+        w = 220 * r;
+      } else {
+        h = 220 / r;
+      }
+
+      const imgX = (220 - w) / 2;
+      const imgY = (220 - h) / 2;
+
+      const w_zoomed = w * zoom;
+      const h_zoomed = h * zoom;
+
+      const zoomShiftX = (w - w_zoomed) / 2;
+      const zoomShiftY = (h - h_zoomed) / 2;
+
+      const fx = imgX + zoomShiftX + position.x;
+      const fy = imgY + zoomShiftY + position.y;
+
+      const S = 512 / 220;
+
+      const cx = fx * S;
+      const cy = fy * S;
+      const cw = w_zoomed * S;
+      const ch = h_zoomed * S;
+
+      ctx.drawImage(img, cx, cy, cw, ch);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const croppedFile = new File([blob], "avatar.png", { type: "image/png" });
+          onCrop(croppedFile);
+        }
+      }, "image/png");
+    };
+    img.onerror = () => {
+      setHasError(true);
+    };
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,89,92,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{
+        background: '#FDFAF5', border: '3px solid #00595c',
+        boxShadow: '6px 6px 0 0 #00595c', padding: 24,
+        maxWidth: 380, width: '100%', display: 'flex',
+        flexDirection: 'column', alignItems: 'center',
+        fontFamily: 'var(--font-jakarta)'
+      }}>
+        <h3 style={{ fontFamily: 'var(--font-newsreader)', fontSize: '1.4rem', fontWeight: 800, color: '#00595c', margin: '0 0 4px 0', textTransform: 'uppercase' }}>
+          Crop Avatar
+        </h3>
+        <p style={{ fontSize: '0.72rem', color: '#6e7979', margin: '0 0 16px 0', fontWeight: 700 }}>
+          DRAG TO PAN · SLIDE TO ZOOM
+        </p>
+
+        {hasError ? (
+          <div style={{ width: 220, height: 220, border: '3px solid #ba1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffebeb', color: '#ba1a1a', textAlign: 'center', padding: 16, fontSize: '0.8rem' }}>
+            Could not load image. Please select a valid photo.
+          </div>
+        ) : (
+          <div 
+            onMouseDown={e => handleStart(e.clientX, e.clientY)}
+            onMouseMove={e => handleMove(e.clientX, e.clientY)}
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+            onTouchStart={e => { const t = e.touches[0]; handleStart(t.clientX, t.clientY) }}
+            onTouchMove={e => { const t = e.touches[0]; handleMove(t.clientX, t.clientY) }}
+            onTouchEnd={handleEnd}
+            style={{
+              position: 'relative', width: 220, height: 220,
+              border: '3px solid #00595c', borderRadius: '50%',
+              overflow: 'hidden', cursor: isDragging ? 'grabbing' : 'grab',
+              background: '#eae8e3', userSelect: 'none'
+            }}
+          >
+            <img
+              src={src}
+              alt="To Crop"
+              draggable={false}
+              style={{
+                position: 'absolute',
+                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                transformOrigin: 'center center',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                userSelect: 'none',
+                pointerEvents: 'none'
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ width: '100%', marginTop: 20, marginBottom: 20 }}>
+          <label style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.68rem', fontWeight: 800, color: '#00595c', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Zoom Control
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.05"
+            value={zoom}
+            onChange={e => setZoom(parseFloat(e.target.value))}
+            style={{ width: '100%', accentColor: '#fea619', cursor: 'pointer' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: '10px', background: 'transparent',
+              border: '2px solid #bec9c9', color: '#6e7979',
+              fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem',
+              fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleCrop}
+            disabled={hasError}
+            style={{
+              flex: 1, padding: '10px', background: '#fea619',
+              border: '2px solid #00595c', color: '#684000',
+              fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem',
+              fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
+              boxShadow: '3px 3px 0 0 #00595c'
+            }}
+          >
+            Apply Crop
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

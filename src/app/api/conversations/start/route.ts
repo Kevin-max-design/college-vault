@@ -97,10 +97,13 @@ export async function POST(req: NextRequest) {
     await createNotification({
       userId: seller_id,
       type: 'message',
-      title: 'New Personal Message',
+      title: 'New Market Message',
       body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
-      link: '/vault',
-      actorId: buyer_id
+      link: '/vault?view=inbox',
+      actorId: buyer_id,
+      category: 'market_message',
+      priority: 'normal',
+      source: 'market',
     });
   } catch (err) {
     console.error('Failed to create in-app notification:', err);

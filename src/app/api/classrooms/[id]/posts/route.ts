@@ -176,10 +176,13 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         await createNotification({
           userId: parentPost.author_id,
           type: 'classroom_reply',
-          title: 'Reply to Doubt',
+          title: 'Reply to Your Doubt',
           body: `${result.user.full_name} replied to your doubt: "${parentPost.content.substring(0, 40)}${parentPost.content.length > 40 ? '...' : ''}"`,
           link: `/classrooms/${id}/posts/${parent_id}`,
-          actorId: result.user.id
+          actorId: result.user.id,
+          category: 'classroom_reply',
+          priority: 'normal',
+          source: 'classroom',
         });
       }
     } else {
@@ -196,17 +199,26 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
           let titleStr = 'New Doubt Posted';
           let bodyStr = `u/${result.user.full_name.replace(/\s+/g, '_')} posted a new doubt: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
           let linkStr = `/classrooms/${id}/posts/${data.id}`;
+          let cat: string = 'classroom_reply';
+          let pri: string = 'normal';
+          let src: string = 'classroom';
 
           if (finalType === 'announcement') {
             typeStr = 'announcement';
             titleStr = 'Faculty Announcement';
             bodyStr = `New announcement: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
             linkStr = `/classrooms/${id}`;
+            cat = 'faculty_announcement';
+            pri = 'high';
+            src = 'faculty';
           } else if (finalType === 'material') {
-            typeStr = 'announcement';
+            typeStr = 'material';
             titleStr = 'New Study Material';
             bodyStr = `New study resource shared: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
             linkStr = `/classrooms/${id}`;
+            cat = 'material_upload';
+            pri = 'normal';
+            src = 'classroom';
           }
 
           return createNotification({
@@ -215,7 +227,10 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
             title: titleStr,
             body: bodyStr,
             link: linkStr,
-            actorId: result.user.id
+            actorId: result.user.id,
+            category: cat as any,
+            priority: pri as any,
+            source: src as any,
           });
         });
 

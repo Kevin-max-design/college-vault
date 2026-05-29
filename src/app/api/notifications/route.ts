@@ -30,7 +30,10 @@ export async function GET(_req: NextRequest) {
     body: n.body,
     time: n.created_at,
     read: n.read,
-    link: n.link
+    link: n.link,
+    category: n.category ?? 'general',
+    priority: n.priority ?? 'normal',
+    source: n.source ?? null,
   }))
 
   return NextResponse.json({ notifications })

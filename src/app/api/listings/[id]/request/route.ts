@@ -106,10 +106,13 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     await createNotification({
       userId: listing.seller_id,
       type: 'request',
-      title: request_type === 'buy' ? 'Buy Request' : 'Rent Request',
+      title: request_type === 'buy' ? 'New Buy Request' : 'New Rent Request',
       body: `${result.user.full_name} requested to ${request_type} your listing: "${listing.title}"`,
-      link: '/vault',
-      actorId: requesterId
+      link: '/vault?view=inbox',
+      actorId: requesterId,
+      category: 'listing_request',
+      priority: 'high',
+      source: 'market',
     });
   } catch (err) {
     console.error('Failed to create in-app notification:', err);

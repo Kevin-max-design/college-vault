@@ -52,10 +52,13 @@ export async function PATCH(_req: NextRequest, ctx: RouteContext) {
       await createNotification({
         userId: post.author_id,
         type: 'resolved',
-        title: data.resolved ? 'Doubt Resolved' : 'Doubt Reopened',
+        title: data.resolved ? 'Doubt Resolved ✓' : 'Doubt Reopened',
         body: `Your doubt has been marked as ${data.resolved ? 'resolved' : 'reopened'} by ${result.user.full_name}.`,
         link: `/classrooms/${data.classroom_id}/posts/${id}`,
-        actorId: result.user.id
+        actorId: result.user.id,
+        category: 'doubt_resolved',
+        priority: 'normal',
+        source: 'classroom',
       });
     }
   } catch (err) {
