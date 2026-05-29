@@ -66,7 +66,7 @@ export async function sendPushToUser(
   }
 ) {
   if (!vapidPublicKey || !vapidPrivateKey) {
-    console.warn('Web Push skipped: VAPID keys not configured in server environment.');
+    console.warn('[PUSH] SKIPPED — VAPID keys not configured in server environment.');
     return;
   }
 
@@ -77,14 +77,16 @@ export async function sendPushToUser(
       .eq('user_id', userId);
 
     if (error) {
-      console.error(`Failed to fetch push subscriptions for user ${userId}:`, error);
+      console.error(`[PUSH] FAILED to fetch push_subscriptions for user ${userId}:`, error.message);
       return;
     }
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log(`No active push subscriptions for user ${userId}`);
+      console.log(`[PUSH] NO_SUBSCRIPTIONS for user ${userId} — user has not enabled push`);
       return;
     }
+
+    console.log(`[PUSH] FOUND ${subscriptions.length} subscription(s) for user ${userId}`);
 
     const pushPromises = subscriptions.map(async (sub) => {
       const pushSubscription = {
@@ -100,19 +102,19 @@ export async function sendPushToUser(
           pushSubscription,
           JSON.stringify(payload)
         );
-        console.log(`Successfully sent push notification to endpoint: ${sub.endpoint}`);
+        console.log(`[PUSH] SENT_OK endpoint=${sub.endpoint.substring(0, 60)}...`);
       } catch (err: any) {
-        console.error(`Error sending push notification to endpoint ${sub.endpoint}:`, err);
+        console.error(`[PUSH] SEND_FAILED endpoint=${sub.endpoint.substring(0, 60)}... statusCode=${err.statusCode} message=${err.message}`);
         
         // Remove expired, gone or invalid push subscriptions (HTTP 410 or 404)
         if (err.statusCode === 410 || err.statusCode === 404) {
-          console.log(`Removing expired or invalid push subscription: ${sub.endpoint}`);
+          console.log(`[PUSH] PRUNING expired subscription id=${sub.id}`);
           const { error: deleteError } = await supabaseAdmin
             .from('push_subscriptions')
             .delete()
             .eq('id', sub.id);
           if (deleteError) {
-            console.error(`Failed to delete expired subscription ${sub.id}:`, deleteError);
+            console.error(`[PUSH] PRUNE_FAILED id=${sub.id}:`, deleteError.message);
           }
         }
       }
@@ -121,7 +123,7 @@ export async function sendPushToUser(
     // Run all pushes in parallel without blocking main flow
     await Promise.all(pushPromises);
   } catch (err) {
-    console.error('Fatal error in sendPushToUser:', err);
+    console.error('[PUSH] FATAL_ERROR in sendPushToUser:', err);
   }
 }
 
@@ -147,7 +149,7 @@ export async function createNotification(params: CreateNotificationParams) {
 
   // Do not notify the sender of their own actions
   if (actorId && userId === actorId) {
-    console.log(`Notification skipped: User ${userId} is the actor.`);
+    console.log(`[NOTIF] SKIPPED — user ${userId} is the actor (self-action).`);
     return null;
   }
 
@@ -174,10 +176,13 @@ export async function createNotification(params: CreateNotificationParams) {
       .single();
 
     if (error) {
-      console.error('Failed to create in-app notification in DB:', error);
+      console.error('[NOTIF] DB_INSERT_FAILED:', error.message);
+    } else {
+      console.log(`[NOTIF] DB_INSERT_OK id=${notification?.id} user=${userId} type=${type} category=${category}`);
     }
 
     // 2. Dispatch push notification (fire-and-forget, non-blocking)
+    console.log(`[NOTIF] DISPATCHING_PUSH to user=${userId} title="${title}"`);
     sendPushToUser(userId, {
       title,
       body,
@@ -185,7 +190,7 @@ export async function createNotification(params: CreateNotificationParams) {
       category,
       priority,
     }).catch((err) => {
-      console.error('Async Web Push delivery failed:', err);
+      console.error('[PUSH] ASYNC_DELIVERY_FAILED:', err);
     });
 
     return notification;
