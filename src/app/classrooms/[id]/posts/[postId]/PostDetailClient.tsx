@@ -572,81 +572,38 @@ function ThreadNode({
                 </span>
               </div>
               <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', fontWeight: 700, color: isMe ? '#855300' : '#3e4949' }}>
-                {authorHandle} {isMe && '(You)'}
+                {isMe ? 'You' : 'Classmate'}
               </span>
               
               {!isMe && (
                 <button
                   onClick={() => onOpenChat(authorId, authorHandle)}
-                  title={`Start Direct Chat with ${authorHandle}`}
+                  title="Send Direct Message"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 3,
-                    background: 'transparent',
-                    border: 'none',
+                    background: '#e8f5f5',
+                    border: '1px solid #00595c',
                     color: '#00595c',
                     fontFamily: 'var(--font-jakarta)',
-                    fontSize: '0.68rem',
+                    fontSize: '0.65rem',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    transition: 'background 0.2s',
+                    padding: '3px 6px',
+                    borderRadius: 2,
+                    boxShadow: '1px 1px 0 0 #00595c',
+                    marginLeft: 6,
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#e8f5f5'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>chat_bubble</span>
-                  Chat
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>chat_bubble</span>
+                  Message
                 </button>
               )}
             </div>
 
-            {/* Actions: Upvote/Downvote & Reply */}
+            {/* Actions: Reply */}
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {/* Reddit Style Vote Box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff', padding: '0 2px' }}>
-                <button 
-                  onClick={() => onVote(post.id, 'up')} 
-                  title="Upvote"
-                  style={{
-                    background: myUpvoted ? '#ff4500' : 'transparent',
-                    border: 'none',
-                    color: myUpvoted ? '#fff' : '#6e7979',
-                    padding: '2px 6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: '0.7rem',
-                    transition: 'background 0.2s, color 0.2s',
-                  }}
-                  onMouseEnter={e => { if(!myUpvoted) e.currentTarget.style.background = '#ffebeb' }}
-                  onMouseLeave={e => { if(!myUpvoted) e.currentTarget.style.background = 'transparent' }}
-                >
-                  ▲
-                </button>
-                <button 
-                  onClick={() => onVote(post.id, 'down')} 
-                  title="Downvote"
-                  style={{
-                    background: myDownvoted ? '#7193ff' : 'transparent',
-                    border: 'none',
-                    color: myDownvoted ? '#fff' : '#6e7979',
-                    padding: '2px 6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: '0.7rem',
-                    transition: 'background 0.2s, color 0.2s',
-                  }}
-                  onMouseEnter={e => { if(!myDownvoted) e.currentTarget.style.background = '#ebeeff' }}
-                  onMouseLeave={e => { if(!myDownvoted) e.currentTarget.style.background = 'transparent' }}
-                >
-                  ▼
-                </button>
-              </div>
-
               {/* Only Others Can Comment Lock */}
               {(!isMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
                 <button onClick={() => setShowReplyBox(v => !v)} style={{
@@ -1328,41 +1285,36 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
               </span>
             </div>
             <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.78rem', fontWeight: 700, color: isMainAuthorMe ? '#855300' : '#3e4949' }}>
-              {mainAuthorHandle} {isMainAuthorMe && '(Author/You)'}
+              {isMainAuthorMe ? 'You' : 'Classmate'} (Author)
             </span>
+            {!isMainAuthorMe && (
+              <button
+                onClick={() => handleOpenChat(mainAuthorId, mainAuthorHandle)}
+                title="Send Direct Message to Author"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: '#e8f5f5',
+                  border: '1.5px solid #00595c',
+                  color: '#00595c',
+                  fontFamily: 'var(--font-jakarta)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: 2,
+                  boxShadow: '1.5px 1.5px 0 0 #00595c',
+                  marginLeft: 8,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chat_bubble</span>
+                Message Author
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            {/* Reddit Upvote Downvote */}
-            <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #bec9c9', borderRadius: 24, overflow: 'hidden', background: '#fff' }}>
-              <button 
-                onClick={() => handleVote(targetPostNode.id, 'up')}
-                style={{
-                  background: mainUpvoted ? '#ff4500' : 'transparent',
-                  border: 'none',
-                  color: mainUpvoted ? '#fff' : '#6e7979',
-                  padding: '4px 12px',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                }}
-              >
-                ▲
-              </button>
-              <button 
-                onClick={() => handleVote(targetPostNode.id, 'down')}
-                style={{
-                  background: mainDownvoted ? '#7193ff' : 'transparent',
-                  border: 'none',
-                  color: mainDownvoted ? '#fff' : '#6e7979',
-                  padding: '4px 12px',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                }}
-              >
-                ▼
-              </button>
-            </div>
-
             {targetPostNode.type === 'doubt' && (isMainAuthorMe || ['faculty', 'hod', 'principal'].includes(userRole)) && (
               <button 
                 onClick={() => handleResolve(targetPostNode.id)}
