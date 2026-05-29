@@ -521,18 +521,6 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }, 300)
   }, [classroom.id])
 
-  if (!mounted) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
-        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
-          Loading Classroom...
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
-    )
-  }
-
   /* Add a reply into the tree in-memory (needed for classmate's auto reply trigger) */
   const addReply = useCallback((parentId: string, newPost: Post) => {
     function insertInto(list: Post[]): Post[] {
@@ -672,6 +660,18 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     const tree = buildTree(cleanPosts)
     return filter === 'all' ? tree : tree.filter(p => p && p.type === filter)
   }, [posts, filter])
+
+  if (!mounted) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', fontFamily: 'var(--font-jakarta)' }}>
+        <div style={{ color: '#00595c', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>sync</span>
+          Loading Classroom...
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: '20px 18px 0' }}>
