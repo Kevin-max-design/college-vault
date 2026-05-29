@@ -75,10 +75,25 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export default async function ClassroomDetailPage({ params }: Props) {
   const { id } = await params
-  const cookieStore = await cookies()
+  console.log('[ClassroomDetail] Rendering page for id:', id)
+
+  let cookieStore
+  try {
+    cookieStore = await cookies()
+  } catch (err) {
+    console.error('[ClassroomDetail] FATAL: cookies() failed:', err)
+    redirect('/classrooms')
+  }
+
   const supabase = createClient(cookieStore)
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user: any = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data?.user
+  } catch (err) {
+    console.error('[ClassroomDetail] FATAL: getUser() failed:', err)
+  }
   if (!user) redirect('/onboarding/verify')
 
   // Safely fetch profile to avoid any crash
