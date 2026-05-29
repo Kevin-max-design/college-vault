@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { ClientCache } from '@/utils/cache'
 import { createClient } from '@/utils/supabase/client'
@@ -72,6 +73,26 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [savedListings, setSavedListings] = useState<string[]>([])
   const [requestedListings, setRequestedListings] = useState<string[]>([])
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Phase 1 listing creation state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("File size exceeds 5MB limit.")
+        return
+      }
+      if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
+        alert("Invalid file type. Only PNG, JPEG, JPG, and WEBP are allowed.")
+        return
+      }
+      setSelectedImage(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
+  }
 
   // Phase 11 LocalStorage and Supabase DB sync
   useEffect(() => {
@@ -165,6 +186,83 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       supabaseClient.removeChannel(channel)
     }
   }, [currentUser.id, fetchConversations])
+
+  // Real-time listings sync (No refreshes needed for new, updated, or deleted items)
+  useEffect(() => {
+    const supabaseClient = createClient()
+    const channel = supabaseClient
+      .channel('realtime-listings')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'listings'
+        },
+        async (payload) => {
+          const newListing = payload.new as any
+          console.log('REALTIME_EVENT (listings INSERT)', payload)
+
+          // Fetch the seller profile join to match listing seller format
+          const { data: sellerProfile } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, avatar_url, department')
+            .eq('id', newListing.seller_id)
+            .single()
+
+          const listingWithSeller = {
+            ...newListing,
+            seller: sellerProfile || { id: newListing.seller_id, full_name: 'Seller', avatar_url: null, department: null }
+          }
+
+          setListings((prev) => {
+            if (prev.some((l) => l.id === listingWithSeller.id)) return prev
+            const updated = [listingWithSeller, ...prev]
+            ClientCache.set('market_listings', updated)
+            return updated
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'listings'
+        },
+        (payload) => {
+          const updatedListing = payload.new as any
+          console.log('REALTIME_EVENT (listings UPDATE)', payload)
+          setListings((prev) => {
+            const updated = prev.map((l) => l.id === updatedListing.id ? { ...l, ...updatedListing } : l)
+            ClientCache.set('market_listings', updated)
+            return updated
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'listings'
+        },
+        (payload) => {
+          const deletedListing = payload.old as { id: string }
+          console.log('REALTIME_EVENT (listings DELETE)', payload)
+          setListings((prev) => {
+            const updated = prev.filter((l) => l.id !== deletedListing.id)
+            ClientCache.set('market_listings', updated)
+            return updated
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabaseClient.removeChannel(channel)
+    }
+  }, [])
 
   // Optimistic Bookmark Save Toggle
   const handleToggleSave = useCallback(async (listing: Listing) => {
@@ -345,33 +443,97 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
     if (!formData.title || !formData.price) return
 
     setIsSubmitting(true)
+
+    const tempId = Math.random().toString(36).substring(2, 11)
+    const priceVal = parseFloat(formData.price)
+
+    // Construct optimistic listing
+    const optimisticListing: Listing = {
+      id: tempId,
+      seller_id: currentUser.id,
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      price: priceVal,
+      type: formData.type as 'buy' | 'rent',
+      category: formData.category as any,
+      status: 'available',
+      images: imagePreview ? [imagePreview] : [],
+      created_at: new Date().toISOString(),
+      seller: {
+        id: currentUser.id,
+        full_name: userProfile?.full_name || 'You',
+        avatar_url: userProfile?.avatar_url || null,
+        department: null
+      }
+    }
+
+    const previousListings = [...listings]
+
+    // Optimistically update the UI
+    setListings(prev => [optimisticListing, ...prev])
+
     try {
+      const supabaseClient = createClient()
+      let imageUrls: string[] = []
+
+      // If an image is selected, upload it to storage
+      if (selectedImage) {
+        const filePath = `${currentUser.id}/listings/${Date.now()}-${selectedImage.name}`
+        const { error: uploadError } = await supabaseClient.storage
+          .from('attachments')
+          .upload(filePath, selectedImage, { cacheControl: '3600', upsert: true })
+
+        if (uploadError) {
+          throw new Error(`Image upload failed: ${uploadError.message}`)
+        }
+
+        const { data: urlData } = supabaseClient.storage
+          .from('attachments')
+          .getPublicUrl(filePath)
+
+        imageUrls.push(urlData.publicUrl)
+      }
+
       const res = await fetch('/api/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          price: parseFloat(formData.price),
+          price: priceVal,
+          images: imageUrls,
         }),
       })
 
       if (res.ok) {
         const newListing = await res.json()
-        const updated = [newListing, ...listings]
-        setListings(updated)
-        ClientCache.set('market_listings', updated)
-        setIsModalOpen(false)
+
+        // Update state with the actual saved listing
+        setListings(prev => {
+          const updated = prev.map(l => l.id === tempId ? newListing : l)
+          ClientCache.set('market_listings', updated)
+          return updated
+        })
+
+        // Reset form state
         setFormData({ title: '', description: '', price: '', type: 'buy', category: 'books' })
-        // Show success toast
+        setSelectedImage(null)
+        setImagePreview(null)
+        setIsModalOpen(false)
+
         setToast({ type: 'success', message: 'Listing posted successfully!' })
         setTimeout(() => setToast(null), 3000)
       } else {
-        const error = await res.json()
-        setToast({ type: 'error', message: error.error || 'Failed to post listing' })
+        // Rollback state on backend failure
+        setListings(previousListings)
+        const errorData = await res.json()
+        setToast({ type: 'error', message: errorData.error || 'Failed to post listing' })
         setTimeout(() => setToast(null), 4000)
       }
-    } catch (err) {
-      alert('An error occurred')
+    } catch (err: any) {
+      // Rollback state on catch error
+      setListings(previousListings)
+      setToast({ type: 'error', message: err?.message || 'An error occurred' })
+      setTimeout(() => setToast(null), 4000)
     } finally {
       setIsSubmitting(false)
     }
@@ -795,9 +957,78 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                 </select>
               </div>
 
-              <div>
+               <div>
                 <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Description (Optional)</label>
                 <textarea className="cv-input" rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Condition, edition, specs..."></textarea>
+              </div>
+
+              <div>
+                <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Product Image (Optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg, image/jpg, image/webp" 
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                  id="listing-image-upload"
+                />
+                <label 
+                  htmlFor="listing-image-upload"
+                  className="cv-input"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    background: '#fbf9f4',
+                    border: '2px dashed #00595c',
+                    borderRadius: 2,
+                    padding: '12px',
+                    fontFamily: 'var(--font-jakarta)',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    color: '#00595c',
+                    textAlign: 'center'
+                  }}
+                >
+                  <span className="material-symbols-outlined">image</span>
+                  {selectedImage ? selectedImage.name : 'Upload Product Photo'}
+                </label>
+                
+                {imagePreview && (
+                  <div style={{ position: 'relative', marginTop: 12, border: '2px solid #00595c', borderRadius: 2, overflow: 'hidden' }}>
+                    <img 
+                      src={imagePreview} 
+                      alt="Listing preview" 
+                      style={{ width: '100%', height: 160, objectFit: 'cover' }} 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedImage(null)
+                        setImagePreview(null)
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        background: '#e0533c',
+                        color: 'white',
+                        border: '2px solid #5c1e14',
+                        borderRadius: '50%',
+                        width: 28,
+                        height: 28,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '2px 2px 0 0 #5c1e14'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="pt-4">
@@ -877,10 +1108,27 @@ const ListingCard = React.memo(function ListingCard({
         fontWeight: 800,
         fontSize: '0.65rem',
         textTransform: 'uppercase',
-        letterSpacing: '0.05em'
+        letterSpacing: '0.05em',
+        zIndex: 10
       }}>
         {listing.type === 'buy' ? 'For Sale' : 'For Rent'}
       </div>
+
+      {listing.images && listing.images.length > 0 && (
+        <div style={{ 
+          width: '100%', 
+          height: 220, 
+          borderBottom: '2px solid #00595c',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <img 
+            src={listing.images[0]} 
+            alt={listing.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      )}
 
       <div style={{ padding: '20px 20px 16px' }}>
         <div style={{
@@ -937,7 +1185,7 @@ const ListingCard = React.memo(function ListingCard({
           paddingTop: 16,
           borderTop: '2px dashed #bec9c9'
         }}>
-          <div className="flex items-center gap-2">
+          <Link href={`/profile/${listing.seller?.id || ''}`} className="flex items-center gap-2 hover:opacity-85" style={{ textDecoration: 'none' }}>
             <div style={{
               width: 24, height: 24, borderRadius: '50%', background: '#dbdad5',
               display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
@@ -951,7 +1199,7 @@ const ListingCard = React.memo(function ListingCard({
             <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 600, color: '#3e4949' }}>
               {listing.seller?.full_name || 'Anonymous'}
             </span>
-          </div>
+          </Link>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             {/* Save Listing Toggle Button */}

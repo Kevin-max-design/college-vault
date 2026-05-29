@@ -148,7 +148,7 @@ function ReplyInput({
           const { createClient } = await import('@/lib/supabase/client')
           const supabase = createClient()
           for (const file of attachedFiles) {
-            const filePath = `${classroomId}/${Date.now()}-${file.name}`
+            const filePath = `${currentUserId}/${classroomId}/${Date.now()}-${file.name}`
             const { error: uploadError } = await supabase.storage
               .from('attachments')
               .upload(filePath, file, { cacheControl: '3600', upsert: true })
@@ -1088,7 +1088,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           const { createClient } = await import('@/lib/supabase/client')
           const supabase = createClient()
           for (const file of directAttachedFiles) {
-            const filePath = `${classroom.id}/${Date.now()}-${file.name}`
+            const filePath = `${userId}/${classroom.id}/${Date.now()}-${file.name}`
             const { error: uploadError } = await supabase.storage
               .from('attachments')
               .upload(filePath, file, { cacheControl: '3600', upsert: true })

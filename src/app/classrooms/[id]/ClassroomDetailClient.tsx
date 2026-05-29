@@ -476,7 +476,7 @@ function PostDoubtModal({
           const supabase = createClient()
           
           for (const file of attachedFiles) {
-            const filePath = `${classroomId}/${Date.now()}-${file.name}`
+            const filePath = `${currentUserId}/${classroomId}/${Date.now()}-${file.name}`
             const { error: uploadError } = await supabase.storage
               .from('attachments')
               .upload(filePath, file, { cacheControl: '3600', upsert: true })

@@ -31,20 +31,32 @@ CREATE POLICY "Authenticated users can upload avatars"
 ON storage.objects
 FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'avatars');
+WITH CHECK (
+  bucket_id = 'avatars' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);
 
 CREATE POLICY "Authenticated users can update avatars"
 ON storage.objects
 FOR UPDATE
 TO authenticated
-USING (bucket_id = 'avatars')
-WITH CHECK (bucket_id = 'avatars');
+USING (
+  bucket_id = 'avatars' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'avatars' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);
 
 CREATE POLICY "Authenticated users can delete avatars"
 ON storage.objects
 FOR DELETE
 TO authenticated
-USING (bucket_id = 'avatars');
+USING (
+  bucket_id = 'avatars' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);
 
 
 -- ── 4  Create/Configure the public 'attachments' bucket ────────────
@@ -70,17 +82,29 @@ CREATE POLICY "Authenticated users can upload attachments"
 ON storage.objects
 FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'attachments');
+WITH CHECK (
+  bucket_id = 'attachments' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);
 
 CREATE POLICY "Authenticated users can update attachments"
 ON storage.objects
 FOR UPDATE
 TO authenticated
-USING (bucket_id = 'attachments')
-WITH CHECK (bucket_id = 'attachments');
+USING (
+  bucket_id = 'attachments' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'attachments' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);
 
 CREATE POLICY "Authenticated users can delete attachments"
 ON storage.objects
 FOR DELETE
 TO authenticated
-USING (bucket_id = 'attachments');
+USING (
+  bucket_id = 'attachments' AND 
+  split_part(name, '/', 1) = auth.uid()::text
+);

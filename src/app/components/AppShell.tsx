@@ -229,6 +229,7 @@ export default function AppShell({
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [showPanel, setShowPanel] = useState(false)
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [toast, setToast] = useState<NotificationItem | null>(null)
   
   const panelRef = useRef<HTMLDivElement>(null)
@@ -429,16 +430,29 @@ export default function AppShell({
     }
   }, [])
 
-  // Auto-close dropdown when clicking outside
+  // Sync theme with localStorage and DOM on mount
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
-        setShowPanel(false)
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(nextTheme)
+    localStorage.setItem('theme', nextTheme)
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
 
   const pushNewNotification = async (item: NotificationItem) => {
     setNotifications(prev => {
@@ -581,6 +595,25 @@ export default function AppShell({
         {/* Right: bell + avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           
+          {/* Theme Toggle Button */}
+          <button
+            aria-label="Toggle Theme"
+            onClick={toggleTheme}
+            style={{
+              background: 'none', border: 'none',
+              color: C.olive, cursor: 'pointer',
+              display: 'flex', alignItems: 'center',
+              padding: 6, borderRadius: '50%',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = C.activeTabBg)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              {theme === 'light' ? 'dark_mode' : 'light_mode'}
+            </span>
+          </button>
+
           {/* Notifications Bell */}
           <button
             aria-label="Notifications"
