@@ -33,6 +33,7 @@ interface ProfileClientProps {
   email: string
   listings: Listing[]
   gameSessions: GameSession[]
+  isClubLead?: boolean
 }
 
 const DEPARTMENTS = [
@@ -53,7 +54,7 @@ const DEPARTMENTS = [
   { value: 'ENG', label: 'English (S&H)' },
 ]
 
-export default function ProfileClient({ profile, email, listings, gameSessions }: ProfileClientProps) {
+export default function ProfileClient({ profile, email, listings, gameSessions, isClubLead = false }: ProfileClientProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
@@ -271,6 +272,22 @@ export default function ProfileClient({ profile, email, listings, gameSessions }
             }}>
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>admin_panel_settings</span>
               <span>Admin Portal</span>
+            </div>
+          </Link>
+        )}
+
+        {/* Club Lead Portal */}
+        {isClubLead && (
+          <Link href="/club-lead" style={{ textDecoration: 'none' }}>
+            <div style={{
+              width: '100%', padding: '12px', background: '#2e7d32', color: '#fff',
+              border: '2px solid #002021', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'var(--font-jakarta)', fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.05em', cursor: 'pointer', boxShadow: '3px 3px 0 0 #002021',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>assignment_ind</span>
+              <span>Club Lead Portal</span>
             </div>
           </Link>
         )}

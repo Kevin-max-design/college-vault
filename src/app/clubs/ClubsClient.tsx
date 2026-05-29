@@ -21,7 +21,15 @@ interface Club {
   semester_label: string
   year_limits: YearLimit[]
   my_membership: { id: string; status: string; reserved_at: string } | null
-  my_payment: { id: string; status: string } | null
+  my_payment: {
+    id: string
+    status: string
+    amount: number
+    proof_url: string | null
+    proof_uploaded_at: string | null
+    payment_note: string
+    notes: string
+  } | null
   my_waitlist: { id: string; position: number } | null
 }
 
@@ -54,6 +62,10 @@ export default function ClubsClient() {
   const [reserving, setReserving] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [uploadingProof, setUploadingProof] = useState<string | null>(null)
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofNote, setProofNote] = useState('')
+  const [showUploadForm, setShowUploadForm] = useState<Record<string, boolean>>({})
 
   const fetchClubs = useCallback(async () => {
     try {
@@ -88,6 +100,9 @@ export default function ClubsClient() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'club_waitlist' }, () => {
         fetchClubs()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_payments' }, () => {
+        fetchClubs()
+      })
       .subscribe()
 
     return () => {
@@ -112,6 +127,42 @@ export default function ClubsClient() {
       setError('Something went wrong. Please try again.')
     } finally {
       setReserving(null)
+    }
+  }
+
+  const handleUploadProof = async (clubId: string, paymentId: string) => {
+    if (!proofFile) {
+      setError('Please select an image or PDF proof file.')
+      return
+    }
+    setUploadingProof(clubId)
+    setError('')
+    setSuccess('')
+    try {
+      const formData = new FormData()
+      formData.append('file', proofFile)
+      formData.append('note', proofNote)
+
+      const res = await fetch(`/api/clubs/${clubId}/payments/${paymentId}/proof`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to upload proof.')
+        return
+      }
+
+      setSuccess('Payment proof uploaded successfully! The club lead has been notified.')
+      setProofFile(null)
+      setProofNote('')
+      setShowUploadForm(prev => ({ ...prev, [clubId]: false }))
+      fetchClubs()
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setUploadingProof(null)
     }
   }
 
@@ -279,32 +330,139 @@ export default function ClubsClient() {
 
                 {/* Status Badges */}
                 {isMember && (
-                  <div className={`flex items-center gap-2 p-3 border ${
-                    club.my_membership!.status === 'active'
-                      ? 'bg-secondary-container border-primary'
-                      : 'bg-tertiary-container border-tertiary'
-                  }`}>
-                    <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>
-                      {club.my_membership!.status === 'active' ? 'verified' : 'hourglass_top'}
-                    </span>
-                    <div>
-                      <p className="font-jakarta text-sm font-bold text-primary">
-                        {club.my_membership!.status === 'active' ? 'Active Member' : 'Slot Reserved'}
-                      </p>
-                      {club.my_payment && (
-                        <p className="font-jakarta text-xs text-outline">
-                          Payment: <span className={
-                            club.my_payment.status === 'verified' ? 'text-primary font-bold' :
-                            club.my_payment.status === 'rejected' ? 'text-error font-bold' :
-                            'text-tertiary font-bold'
-                          }>
-                            {club.my_payment.status === 'verified' ? '✓ Verified' :
-                             club.my_payment.status === 'rejected' ? '✕ Rejected' :
-                             '⏳ Pending — pay ₹200 to club lead'}
-                          </span>
+                  <div className="flex flex-col gap-3">
+                    <div className={`flex items-center gap-2 p-3 border ${
+                      club.my_membership!.status === 'active'
+                        ? 'bg-secondary-container border-primary'
+                        : 'bg-tertiary-container border-tertiary'
+                    }`}>
+                      <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>
+                        {club.my_membership!.status === 'active' ? 'verified' : 'hourglass_top'}
+                      </span>
+                      <div>
+                        <p className="font-jakarta text-sm font-bold text-primary">
+                          {club.my_membership!.status === 'active' ? 'Active Member' : 'Slot Reserved'}
                         </p>
-                      )}
+                        {club.my_payment && (
+                          <p className="font-jakarta text-xs text-outline">
+                            Payment: <span className={
+                              club.my_payment.status === 'verified' ? 'text-primary font-bold' :
+                              club.my_payment.status === 'rejected' ? 'text-error font-bold' :
+                              'text-tertiary font-bold'
+                            }>
+                              {club.my_payment.status === 'verified' ? '✓ Verified' :
+                               club.my_payment.status === 'rejected' ? '✕ Rejected' :
+                               '⏳ Pending — pay ₹200 to club lead'}
+                            </span>
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Pending/Rejected Payment Details & Upload Form */}
+                    {club.my_membership!.status === 'reserved' && club.my_payment && (
+                      <div className="border border-outline-variant bg-surface-variant p-4 flex flex-col gap-3">
+                        <h4 className="font-newsreader font-bold text-base text-primary">
+                          Complete Reservation Payment
+                        </h4>
+                        
+                        <div className="font-jakarta text-xs text-outline flex flex-col gap-1.5">
+                          <p>To secure your active membership, please pay the semester fee of <strong>₹200</strong>.</p>
+                          <p><strong>Club Lead:</strong> {club.lead_name || 'Assigned Lead'}</p>
+                        </div>
+
+                        {/* Rejected Notice */}
+                        {club.my_payment.status === 'rejected' && (
+                          <div className="bg-error-container text-on-error-container border border-error p-2.5 text-xs font-jakarta">
+                            <strong>✕ Payment Rejected</strong>: {club.my_payment.notes || 'Please check your proof and try again.'}
+                          </div>
+                        )}
+
+                        {/* UPI details */}
+                        <div className="border border-outline-variant p-3 bg-surface flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-jakarta text-[0.6rem] font-black uppercase text-outline">Option 1: Pay with UPI</span>
+                            <span className="font-jakarta text-[0.55rem] font-bold text-outline-variant bg-surface-variant px-1.5 py-0.5 rounded">Fastest</span>
+                          </div>
+                          <div className="flex gap-3 items-center">
+                            <div className="w-14 h-14 bg-outline-variant border border-primary flex items-center justify-center font-bold text-[0.5rem] text-center text-outline select-none p-1">
+                              [UPI QR CODE]
+                            </div>
+                            <div className="flex-1 flex flex-col gap-1">
+                              <span className="font-jakarta text-xs font-bold text-primary">rgmcet.{club.name.replace(/[^a-z0-9]/gi, "").toLowerCase()}@upi</span>
+                              <a
+                                href={`upi://pay?pa=rgmcet.${club.name.replace(/[^a-z0-9]/gi, "").toLowerCase()}@upi&pn=${encodeURIComponent(club.lead_name || club.name)}&am=200&cu=INR`}
+                                className="text-[0.62rem] font-black uppercase text-primary underline"
+                              >
+                                Tap to Pay in UPI App
+                              </a>
+                            </div>
+                          </div>
+                          <div className="border-t border-dashed border-outline-variant pt-2 mt-1 flex justify-between items-center text-[0.65rem] font-jakarta text-outline-variant italic">
+                            <span>Online payment gateway coming soon</span>
+                            <span className="material-symbols-outlined text-xs">lock</span>
+                          </div>
+                        </div>
+
+                        {/* Proof Status */}
+                        {club.my_payment.proof_url ? (
+                          <div className="bg-secondary-container text-on-secondary-container border border-primary p-2.5 text-xs font-jakarta flex flex-col gap-1">
+                            <span className="font-bold text-primary">✓ Proof Uploaded</span>
+                            <p className="text-outline">Uploaded for verification. You can view your attachment below.</p>
+                            <div className="flex gap-2.5 mt-1.5">
+                              <a
+                                href={club.my_payment.proof_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline font-bold"
+                              >
+                                View Attachment
+                              </a>
+                              <button
+                                onClick={() => setShowUploadForm(prev => ({ ...prev, [club.id]: !prev[club.id] }))}
+                                className="text-primary underline font-bold cursor-pointer"
+                              >
+                                {showUploadForm[club.id] ? 'Cancel Re-upload' : 'Re-upload Proof'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="font-jakarta text-xs text-outline italic">No payment proof uploaded yet. Please upload below.</p>
+                        )}
+
+                        {/* Upload form conditional */}
+                        {(!club.my_payment.proof_url || showUploadForm[club.id] || club.my_payment.status === 'rejected') && (
+                          <div className="flex flex-col gap-2.5 border-t border-dashed border-outline-variant pt-3">
+                            <div className="flex flex-col gap-1">
+                              <label className="font-jakarta text-[0.6rem] font-black uppercase text-outline">Upload Screenshot/Receipt</label>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                                className="font-jakarta text-xs text-outline border border-outline-variant p-1 bg-surface"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="font-jakarta text-[0.6rem] font-black uppercase text-outline">Notes (Optional)</label>
+                              <input
+                                type="text"
+                                placeholder="Txn ID, reference, or description..."
+                                value={proofNote}
+                                onChange={(e) => setProofNote(e.target.value)}
+                                className="font-jakarta text-xs text-outline border border-outline-variant p-1.5 bg-surface"
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleUploadProof(club.id, club.my_payment!.id)}
+                              disabled={uploadingProof === club.id}
+                              className="bg-primary text-on-primary font-jakarta font-black text-[0.6rem] uppercase tracking-widest px-4 py-2 border border-primary shadow-[2px_2px_0px_0px_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn cursor-pointer disabled:opacity-50"
+                            >
+                              {uploadingProof === club.id ? 'Uploading...' : 'Submit Payment Proof'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

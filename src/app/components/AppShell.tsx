@@ -231,6 +231,9 @@ export default function AppShell({
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all')
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [toast, setToast] = useState<NotificationItem | null>(null)
+  const [userRole, setUserRole] = useState<string>('student')
+  const [isClubLead, setIsClubLead] = useState<boolean>(false)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false)
 
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -376,6 +379,30 @@ export default function AppShell({
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!isMounted || !user) return
+
+      // Fetch user profile role and lead status
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+        .then(({ data: profile }) => {
+          if (!isMounted || !profile) return
+          setUserRole(profile.role || 'student')
+          if (profile.role === 'hod' || profile.role === 'principal') {
+            setIsClubLead(true)
+          } else {
+            supabase
+              .from('clubs')
+              .select('id', { count: 'exact', head: true })
+              .eq('lead_id', user.id)
+              .then(({ count }) => {
+                if (isMounted) {
+                  setIsClubLead((count || 0) > 0)
+                }
+              })
+          }
+        })
 
       channel = supabase
         .channel(`user-notifications:${user.id}`)
@@ -567,6 +594,7 @@ export default function AppShell({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             aria-label="Menu"
+            onClick={() => setSidebarOpen(true)}
             style={{
               background: 'none', border: 'none',
               color: C.olive, cursor: 'pointer',
@@ -972,6 +1000,102 @@ export default function AppShell({
             <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.72rem', color: '#1b1c19', margin: 0, lineHeight: 1.4 }}>
               {toast.body}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hamburger Sidebar Drawer ────────────────────────────── */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 999,
+            display: 'flex',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 260,
+              background: '#FDFAF5',
+              borderRight: '3px solid #00595c',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '24px 20px',
+              gap: 20,
+              boxShadow: '4px 0 0 0 #00595c',
+              animation: 'drawerSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            }}
+          >
+            <style>{`
+              @keyframes drawerSlide {
+                from { transform: translateX(-100%); }
+                to { transform: translateX(0); }
+              }
+            `}</style>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #00595c', paddingBottom: 12 }}>
+              <span style={{ fontFamily: 'var(--font-newsreader)', fontWeight: 800, fontSize: '1.4rem', color: '#00595c', fontStyle: 'italic' }}>
+                Campus Vault
+              </span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#00595c' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+              <Link href="/home" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname === '/home' || pathname === '/' ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>
+                Home
+              </Link>
+              <Link href="/classrooms" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/classrooms') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>school</span>
+                Classrooms
+              </Link>
+              <Link href="/bulletin" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/bulletin') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>people</span>
+                Social Bulletin
+              </Link>
+              <Link href="/vault" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/vault') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span>
+                Marketplace
+              </Link>
+              <Link href="/clubs" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/clubs') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>groups</span>
+                Clubs
+              </Link>
+
+              {/* Conditionally Render Admin Portal Link */}
+              {(userRole === 'hod' || userRole === 'principal') && (
+                <Link href="/admin" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/admin') && !pathname.startsWith('/admin/clubs') ? '#EAE4D8' : 'transparent', color: '#dc2626', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid #ffccd5', marginTop: 10 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>admin_panel_settings</span>
+                  Admin Portal
+                </Link>
+              )}
+
+              {/* Conditionally Render Club Lead Portal Link */}
+              {isClubLead && (
+                <Link href="/club-lead" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/club-lead') ? '#EAE4D8' : 'transparent', color: '#2e7d32', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid #ccffd5', marginTop: 5 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>assignment_ind</span>
+                  Club Lead Portal
+                </Link>
+              )}
+            </nav>
+
+            <div style={{ borderTop: '1px solid #E2D9C8', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Link href="/profile" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.75rem', fontWeight: 700 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person</span>
+                My Profile
+              </Link>
+            </div>
+
           </div>
         </div>
       )}

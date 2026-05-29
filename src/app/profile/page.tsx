@@ -56,6 +56,18 @@ export default async function ProfilePage() {
     ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
     : 'U'
 
+  // Query if this user is a club lead (or admin/HOD)
+  let isClubLead = false
+  if (profile.role === 'hod' || profile.role === 'principal') {
+    isClubLead = true
+  } else {
+    const { count } = await supabase
+      .from('clubs')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_id', auth.user.id)
+    isClubLead = (count || 0) > 0
+  }
+
   return (
     <AppShell 
       pageTitle="PROFILE"
@@ -67,6 +79,7 @@ export default async function ProfilePage() {
         listings={listings ?? []}
         gameSessions={(gameSessions as any) ?? []}
         email={auth.user.email ?? ''}
+        isClubLead={isClubLead}
       />
     </AppShell>
   )

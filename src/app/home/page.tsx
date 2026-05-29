@@ -17,12 +17,26 @@ export default async function HomePage() {
   try {
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, avatar_url, department, year_of_study')
+      .select('full_name, avatar_url, department, year_of_study, role')
       .eq('id', user.id)
       .single()
     profile = data
   } catch (err) {
     console.error('Error fetching profile server-side on homepage:', err)
+  }
+
+  // Check if they are a club lead
+  let isClubLead = false
+  if (profile) {
+    if (profile.role === 'hod' || profile.role === 'principal') {
+      isClubLead = true
+    } else {
+      const { count } = await supabase
+        .from('clubs')
+        .select('id', { count: 'exact', head: true })
+        .eq('lead_id', user.id)
+      isClubLead = (count || 0) > 0
+    }
   }
 
   const fullName = profile?.full_name?.trim() || ''
@@ -180,6 +194,35 @@ export default async function HomePage() {
               groups
             </span>
           </article>
+
+          {/* ── Club Lead Portal Quick Access Card ──────────────────── */}
+          {isClubLead && (
+            <article className="border-2 border-primary p-6 shadow-[4px_4px_0px_0px_#00595c] relative overflow-hidden flex flex-col gap-4" style={{ backgroundColor: '#e8f5e9', color: '#2e7d32' }}>
+              <div className="relative z-10 flex flex-col gap-2">
+                <div className="bg-surface w-fit px-3 py-1 border border-primary shadow-[2px_2px_0px_0px_#00595c] font-jakarta font-black text-[0.65rem] uppercase tracking-widest text-primary">
+                  MANAGEMENT
+                </div>
+                <h3 className="font-newsreader font-black text-3xl text-primary leading-tight">
+                  Club Lead Dashboard
+                </h3>
+                <p className="font-jakarta text-sm font-bold text-on-surface-variant max-w-[85%] leading-snug">
+                  Manage limits, review pending verification requests, view member rosters, and export statistics.
+                </p>
+              </div>
+              <div className="relative z-10">
+                <Link href="/club-lead">
+                  <button className="bg-surface text-primary border-2 border-primary px-6 py-2.5 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn cursor-pointer">
+                    Open Club Lead Portal
+                  </button>
+                </Link>
+              </div>
+              {/* Decor */}
+              <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-secondary-container rounded-full border-4 border-primary opacity-40 pointer-events-none" />
+              <span className="material-symbols-outlined absolute top-4 right-4 text-6xl text-primary opacity-20 transform rotate-12 pointer-events-none">
+                assignment_ind
+              </span>
+            </article>
+          )}
         </section>
 
       </main>

@@ -43,7 +43,7 @@ export async function GET() {
   // 5. Fetch current user's payments
   const { data: myPayments } = await supabaseAdmin
     .from("club_payments")
-    .select("id, club_id, member_id, status, amount")
+    .select("id, club_id, member_id, status, amount, proof_url, proof_uploaded_at, payment_note, notes")
     .eq("user_id", user.id);
 
   // 6. Fetch current user's waitlist entries
@@ -80,9 +80,17 @@ export async function GET() {
     myMemberMap[m.club_id] = { id: m.id, status: m.status, reserved_at: m.reserved_at };
   });
 
-  const myPaymentMap: Record<string, { id: string; status: string }> = {};
+  const myPaymentMap: Record<string, { id: string; status: string; amount: number; proof_url: string | null; proof_uploaded_at: string | null; payment_note: string; notes: string }> = {};
   (myPayments || []).forEach((p) => {
-    myPaymentMap[p.club_id] = { id: p.id, status: p.status };
+    myPaymentMap[p.club_id] = {
+      id: p.id,
+      status: p.status,
+      amount: Number(p.amount),
+      proof_url: p.proof_url || null,
+      proof_uploaded_at: p.proof_uploaded_at || null,
+      payment_note: p.payment_note || '',
+      notes: p.notes || ''
+    };
   });
 
   const myWaitlistMap: Record<string, { id: string; position: number }> = {};

@@ -101,6 +101,8 @@ export default function AdminClubsPage() {
   const [editLimits, setEditLimits] = useState<Record<string, Record<number, number>>>({})
   const [savingLimits, setSavingLimits] = useState<string | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [assigningLead, setAssigningLead] = useState<string | null>(null)
 
   // Drill-down
   const [selectedClub, setSelectedClub] = useState<string | null>(null)
@@ -122,7 +124,22 @@ export default function AdminClubsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchClubs() }, [fetchClubs])
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/admin/users')
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users || [])
+      }
+    } catch (e) {
+      console.error("Failed to load users:", e)
+    }
+  }
+
+  useEffect(() => {
+    fetchClubs()
+    fetchUsers()
+  }, [fetchClubs])
 
   // Initialize edit limits from fetched data
   useEffect(() => {
@@ -177,6 +194,30 @@ export default function AdminClubsPage() {
       setError('Failed to toggle status.')
     } finally {
       setTogglingStatus(null)
+    }
+  }
+
+  const handleAssignLead = async (clubId: string, leadId: string | null) => {
+    setAssigningLead(clubId)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await fetch(`/api/admin/clubs/${clubId}/lead`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to assign lead.')
+        return
+      }
+      setSuccess('Club lead updated successfully.')
+      fetchClubs()
+    } catch {
+      setError('An error occurred while assigning lead.')
+    } finally {
+      setAssigningLead(null)
     }
   }
 
@@ -305,10 +346,36 @@ export default function AdminClubsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
               <div>
                 <h3 style={headingStyle}>{club.name}</h3>
-                <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', color: '#94a3b8', marginTop: 2 }}>
-                  {club.lead_name ? `Lead: ${club.lead_name}` : 'No lead assigned'}
-                  {club.semester_label ? ` • ${club.semester_label}` : ''}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Lead:</span>
+                  <select
+                    value={club.lead_id || ''}
+                    onChange={(e) => handleAssignLead(club.id, e.target.value || null)}
+                    disabled={assigningLead === club.id}
+                    style={{
+                      fontFamily: 'var(--font-jakarta)',
+                      fontSize: '0.7rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '2px 4px',
+                      background: '#fff',
+                      color: '#334155',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role}{u.department ? ` - ${u.department}` : ''})
+                      </option>
+                    ))}
+                  </select>
+                  {club.semester_label && (
+                    <span style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.7rem', color: '#94a3b8' }}>
+                      • {club.semester_label}
+                    </span>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <button
