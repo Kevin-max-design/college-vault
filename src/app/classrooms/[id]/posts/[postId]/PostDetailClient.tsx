@@ -426,20 +426,20 @@ function ThreadNode({
 
   return (
     <div style={{
-      marginLeft: depth > 0 ? 12 : 0,
-      marginTop: 10,
+      marginLeft: depth > 0 ? 8 : 0,
+      marginTop: 8,
       display: 'flex',
-      gap: 10,
+      gap: 6,
     }}>
       {/* Clickable Reddit Left Collapsible Track Line */}
       <div 
         onClick={() => setCollapsed(true)}
         title="Collapse replies"
         style={{
-          width: 12,
+          width: 8,
           cursor: 'pointer',
-          borderRight: `2px solid ${indentColor}`,
-          marginRight: 2,
+          borderRight: `1.5px solid ${indentColor}`,
+          marginRight: 1,
           transition: 'border-color 0.2s',
         }}
         onMouseEnter={e => e.currentTarget.style.borderColor = '#fea619'}
@@ -449,9 +449,9 @@ function ThreadNode({
       {/* Main Comment Node Wrapper */}
       <div style={{ flex: 1 }}>
         <div style={{
-          border: `2px solid ${post.resolved ? '#bec9c9' : indentColor}`,
+          border: `1.5px solid ${post.resolved ? '#bec9c9' : indentColor}`,
           background: post.resolved ? '#f5f3ee' : '#fdfcf8',
-          padding: '12px 14px',
+          padding: '8px 12px',
           boxShadow: 'none',
         }}>
           {/* Header */}
@@ -492,7 +492,7 @@ function ThreadNode({
           </div>
 
           {/* Content */}
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.875rem', lineHeight: 1.6, color: '#1b1c19', marginBottom: post.attachments && post.attachments.length > 0 ? 8 : 10 }}>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.825rem', lineHeight: 1.5, color: '#1b1c19', marginBottom: post.attachments && post.attachments.length > 0 ? 6 : 8 }}>
             {post.content}
           </p>
 
@@ -604,9 +604,9 @@ function ThreadNode({
             </div>
 
             {/* Actions: Upvote/Downvote & Reply */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {/* Reddit Style Vote Box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1.5px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff', padding: '0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #bec9c9', borderRadius: 20, overflow: 'hidden', background: '#fff', padding: '0 2px' }}>
                 <button 
                   onClick={() => onVote(post.id, 'up')} 
                   title="Upvote"
@@ -614,11 +614,11 @@ function ThreadNode({
                     background: myUpvoted ? '#ff4500' : 'transparent',
                     border: 'none',
                     color: myUpvoted ? '#fff' : '#6e7979',
-                    padding: '3px 8px',
+                    padding: '2px 6px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    fontSize: '0.75rem',
+                    fontSize: '0.7rem',
                     transition: 'background 0.2s, color 0.2s',
                   }}
                   onMouseEnter={e => { if(!myUpvoted) e.currentTarget.style.background = '#ffebeb' }}
@@ -633,11 +633,11 @@ function ThreadNode({
                     background: myDownvoted ? '#7193ff' : 'transparent',
                     border: 'none',
                     color: myDownvoted ? '#fff' : '#6e7979',
-                    padding: '3px 8px',
+                    padding: '2px 6px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    fontSize: '0.75rem',
+                    fontSize: '0.7rem',
                     transition: 'background 0.2s, color 0.2s',
                   }}
                   onMouseEnter={e => { if(!myDownvoted) e.currentTarget.style.background = '#ebeeff' }}
@@ -650,18 +650,18 @@ function ThreadNode({
               {/* Only Others Can Comment Lock */}
               {(!isMe || ['hod', 'faculty', 'principal'].includes(userRole)) ? (
                 <button onClick={() => setShowReplyBox(v => !v)} style={{
-                  display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px',
-                  border: '1.5px solid #bec9c9', background: 'transparent',
-                  color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                  display: 'flex', alignItems: 'center', gap: 3, padding: '3px 6px',
+                  border: '1px solid #bec9c9', background: 'transparent',
+                  color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem',
                   fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
                 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>reply</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>reply</span>
                   Reply
                 </button>
               ) : (
                 <span style={{
-                  fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem', color: '#bec9c9',
-                  fontStyle: 'italic', padding: '4px 8px'
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.6rem', color: '#bec9c9',
+                  fontStyle: 'italic', padding: '3px 6px'
                 }}>
                   Only classmates can comment
                 </span>
@@ -669,10 +669,10 @@ function ThreadNode({
 
               {isDoubt && (isMe || ['faculty', 'hod', 'principal'].includes(userRole)) && (
                 <button onClick={() => onResolve(post.id)} style={{
-                  padding: '4px 8px', border: `1.5px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
+                  padding: '3px 6px', border: `1px solid ${post.resolved ? '#bec9c9' : '#00595c'}`,
                   background: post.resolved ? 'transparent' : '#00595c',
                   color: post.resolved ? '#6e7979' : '#fff',
-                  fontFamily: 'var(--font-jakarta)', fontSize: '0.65rem',
+                  fontFamily: 'var(--font-jakarta)', fontSize: '0.62rem',
                   fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer',
                 }}>
                   {post.resolved ? 'Reopen' : 'Resolve'}
