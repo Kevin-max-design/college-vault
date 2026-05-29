@@ -153,6 +153,33 @@ export default async function HomePage() {
               </div>
             </article>
           </div>
+
+          {/* ── Clubs & Communities Card ──────────────────────────── */}
+          <article className="bg-tertiary-container text-on-tertiary-container border-2 border-primary p-6 shadow-[4px_4px_0px_0px_#00595c] relative overflow-hidden flex flex-col gap-4">
+            <div className="relative z-10 flex flex-col gap-2">
+              <div className="bg-surface w-fit px-3 py-1 border border-primary shadow-[2px_2px_0px_0px_#00595c] font-jakarta font-black text-[0.65rem] uppercase tracking-widest text-primary">
+                COMMUNITIES
+              </div>
+              <h3 className="font-newsreader font-black text-3xl text-primary leading-tight">
+                Clubs &amp; Societies
+              </h3>
+              <p className="font-jakarta text-sm font-bold text-on-surface-variant max-w-[85%] leading-snug">
+                Reserve your semester club slot — Art House, Codes Club, Hydra, Jignasa, Shield Prep, Vedic Vox, and Yuga Spark. First-come-first-serve with ₹200 per club.
+              </p>
+            </div>
+            <div className="relative z-10">
+              <Link href="/clubs">
+                <button className="bg-surface text-primary border-2 border-primary px-6 py-2.5 font-jakarta font-black text-[0.65rem] uppercase tracking-widest shadow-[4px_4px_0px_0px_#00595c] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none cv-transition-btn cursor-pointer">
+                  View Clubs
+                </button>
+              </Link>
+            </div>
+            {/* Decor */}
+            <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-secondary-container rounded-full border-4 border-primary opacity-40 pointer-events-none" />
+            <span className="material-symbols-outlined absolute top-4 right-4 text-6xl text-primary opacity-20 transform rotate-12 pointer-events-none">
+              groups
+            </span>
+          </article>
         </section>
 
       </main>

@@ -18,10 +18,12 @@ const HOD_NAV = [
   { href: '/admin/posts', label: 'Posts & Doubts', icon: 'forum' },
   { href: '/admin/vault', label: 'Vault Listings', icon: 'storefront' },
   { href: '/admin/bulletin', label: 'Bulletin', icon: 'campaign' },
+  { href: '/admin/clubs', label: 'Clubs', icon: 'groups' },
 ]
 
 const PRINCIPAL_NAV = [
   { href: '/admin/bulletin', label: 'Post News', icon: 'campaign' },
+  { href: '/admin/clubs', label: 'Clubs', icon: 'groups' },
 ]
 
 export default function AdminShell({ children, userRole, userName, department }: AdminShellProps) {
