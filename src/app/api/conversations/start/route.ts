@@ -91,6 +91,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msgError.message }, { status: 500 });
   }
 
+  // Notify the seller about the new conversation/message
+  try {
+    await supabase
+      .from('user_notifications')
+      .insert({
+        user_id: seller_id,
+        type: 'message',
+        title: 'New Personal Message',
+        body: `${result.user.full_name}: "${body.trim().substring(0, 80)}${body.trim().length > 80 ? '...' : ''}"`,
+        link: '/vault',
+        read: false
+      });
+  } catch (err) {
+    console.error('Failed to create in-app notification:', err);
+  }
+
   // 4. Return conversation and first message
   return NextResponse.json({ conversation, message }, { status: 201 });
 }

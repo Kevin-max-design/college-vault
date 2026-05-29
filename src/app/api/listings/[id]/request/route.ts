@@ -100,5 +100,21 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
       body: autoMessage,
     });
 
+  // Notify the seller of the buy/rent request
+  try {
+    await supabase
+      .from('user_notifications')
+      .insert({
+        user_id: listing.seller_id,
+        type: 'request',
+        title: request_type === 'buy' ? 'Buy Request' : 'Rent Request',
+        body: `${result.user.full_name} requested to ${request_type} your listing: "${listing.title}"`,
+        link: '/vault',
+        read: false
+      });
+  } catch (err) {
+    console.error('Failed to create in-app notification:', err);
+  }
+
   return NextResponse.json({ success: true, data: newRequest, conversation_id: conversation.id }, { status: 201 });
 }

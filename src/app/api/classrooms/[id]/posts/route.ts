@@ -145,5 +145,71 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Send persistent in-app notifications in the background
+  try {
+    if (parent_id) {
+      // 1. Classroom reply received
+      const { data: parentPost } = await supabase
+        .from("posts")
+        .select("author_id, content")
+        .eq("id", parent_id)
+        .single();
+      
+      if (parentPost && parentPost.author_id !== result.user.id) {
+        await supabase
+          .from('user_notifications')
+          .insert({
+            user_id: parentPost.author_id,
+            type: 'classroom_reply',
+            title: 'Reply to Doubt',
+            body: `${result.user.full_name} replied to your doubt: "${parentPost.content.substring(0, 40)}${parentPost.content.length > 40 ? '...' : ''}"`,
+            link: `/classrooms/${id}/posts/${parent_id}`,
+            read: false
+          });
+      }
+    } else {
+      // 2. New classroom doubt, material, or announcement posted
+      const { data: members } = await supabase
+        .from("classroom_members")
+        .select("user_id")
+        .eq("classroom_id", id)
+        .neq("user_id", result.user.id);
+      
+      if (members && members.length > 0) {
+        const inserts = members.map(m => {
+          let typeStr = 'classroom_doubt';
+          let titleStr = 'New Doubt Posted';
+          let bodyStr = `u/${result.user.full_name.replace(/\s+/g, '_')} posted a new doubt: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
+          let linkStr = `/classrooms/${id}/posts/${data.id}`;
+
+          if (finalType === 'announcement') {
+            typeStr = 'announcement';
+            titleStr = 'Faculty Announcement';
+            bodyStr = `New announcement: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
+            linkStr = `/classrooms/${id}`;
+          } else if (finalType === 'material') {
+            typeStr = 'announcement';
+            titleStr = 'New Study Material';
+            bodyStr = `New study resource shared: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
+            linkStr = `/classrooms/${id}`;
+          }
+
+          return {
+            user_id: m.user_id,
+            type: typeStr,
+            title: titleStr,
+            body: bodyStr,
+            link: linkStr,
+            read: false
+          };
+        });
+
+        await supabase.from('user_notifications').insert(inserts);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to dispatch classroom notifications:', err);
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

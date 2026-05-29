@@ -168,25 +168,30 @@ export default function AppShell({
       try {
         setNotifications(JSON.parse(stored))
       } catch {
-        setNotifications(DEFAULT_NOTIFICATIONS)
+        setNotifications([])
       }
-    } else {
-      setNotifications(DEFAULT_NOTIFICATIONS)
-      localStorage.setItem('cv_notifications', JSON.stringify(DEFAULT_NOTIFICATIONS))
     }
 
-    // 2. Fetch fresh notifications from Supabase
-    fetch('/api/notifications')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.notifications)) {
-          // If Supabase has notifications, use them and update cache
-          const finalNotifs = data.notifications.length > 0 ? data.notifications : (stored ? JSON.parse(stored) : DEFAULT_NOTIFICATIONS)
-          setNotifications(finalNotifs)
-          localStorage.setItem('cv_notifications', JSON.stringify(finalNotifs))
-        }
-      })
-      .catch(err => console.error('Failed to sync notifications:', err))
+    // 2. Fetch function to get fresh notifications from Supabase
+    const fetchFreshNotifications = () => {
+      fetch('/api/notifications')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data.notifications)) {
+            setNotifications(data.notifications)
+            localStorage.setItem('cv_notifications', JSON.stringify(data.notifications))
+          }
+        })
+        .catch(err => console.error('Failed to sync notifications:', err))
+    }
+
+    // Initial load
+    fetchFreshNotifications()
+
+    // 3. Periodic Background Sync (Poll every 15 seconds)
+    const interval = setInterval(fetchFreshNotifications, 15000)
+
+    return () => clearInterval(interval)
   }, [])
 
   // Auto-close dropdown when clicking outside
@@ -198,42 +203,6 @@ export default function AppShell({
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Dynamic simulation of real-time incoming classmate updates
-  useEffect(() => {
-    // 1st simulated update: a live personal message after 12 seconds
-    const timer1 = setTimeout(() => {
-      const pm: NotificationItem = {
-        id: 'sim-' + Date.now(),
-        type: 'message',
-        title: 'New Personal Message',
-        body: 'u/Theory_Scholar: "Hey, do you want to join our study group at the library? We are working on discrete math."',
-        time: 'just now',
-        read: false,
-        link: '/vault',
-      }
-      pushNewNotification(pm)
-    }, 12000)
-
-    // 2nd simulated update: a new classroom doubt in project classrooms after 35 seconds
-    const timer2 = setTimeout(() => {
-      const dbPost: NotificationItem = {
-        id: 'sim-' + (Date.now() + 1),
-        type: 'classroom_post',
-        title: 'New Classroom Post',
-        body: 'u/Curious_Neural_Net posted a new doubt in ML Fundamentals: "ReLU vs Leaky ReLU convergence speed."',
-        time: 'just now',
-        read: false,
-        link: '/classrooms/proj-ml-fundamentals',
-      }
-      pushNewNotification(dbPost)
-    }, 35000)
-
-    return () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-    }
   }, [])
 
   const pushNewNotification = async (item: NotificationItem) => {

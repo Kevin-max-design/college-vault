@@ -45,5 +45,23 @@ export async function PATCH(_req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Notify the doubt author if someone else (e.g., faculty) resolved it
+  try {
+    if (post.author_id !== result.user.id) {
+      await supabase
+        .from('user_notifications')
+        .insert({
+          user_id: post.author_id,
+          type: 'resolved',
+          title: data.resolved ? 'Doubt Resolved' : 'Doubt Reopened',
+          body: `Your doubt has been marked as ${data.resolved ? 'resolved' : 'reopened'} by ${result.user.full_name}.`,
+          link: `/classrooms/${data.classroom_id}/posts/${id}`,
+          read: false
+        });
+    }
+  } catch (err) {
+    console.error('Failed to dispatch doubt resolution notification:', err);
+  }
+
   return NextResponse.json(data);
 }
