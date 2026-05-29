@@ -831,6 +831,7 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
         { event: 'INSERT', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
         async (payload) => {
           const raw = payload.new as any
+          console.log('REALTIME_EVENT (detail posts INSERT)', payload)
           // Fetch only the joined fields we need (author + reactions) — NOT the whole post
           // This avoids a full round-trip and uses a targeted single-row query
           const { data: joined } = await supabase
@@ -858,7 +859,64 @@ export default function PostDetailClient({ classroom, postId, initialPosts, user
           })
         }
       )
-      .subscribe()
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
+        (payload) => {
+          const updatedPost = payload.new as any
+          console.log('REALTIME_EVENT (detail posts UPDATE)', payload)
+          setPosts(prev => prev.map(p => {
+            if (p.id === updatedPost.id) {
+              return {
+                ...p,
+                content: updatedPost.content,
+                resolved: updatedPost.resolved,
+                type: updatedPost.type,
+                attachments: updatedPost.attachments ?? [],
+              }
+            }
+            return p
+          }))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'posts', filter: `classroom_id=eq.${classroom.id}` },
+        (payload) => {
+          const deletedPost = payload.old as { id: string }
+          console.log('REALTIME_EVENT (detail posts DELETE)', payload)
+          setPosts(prev => prev.filter(p => p.id !== deletedPost.id))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reactions' },
+        (payload) => {
+          console.log('REALTIME_EVENT (reactions detail)', payload)
+          if (payload.eventType === 'INSERT') {
+            const newReaction = payload.new as { post_id: string; emoji: string; user_id: string }
+            setPosts(prev => prev.map(p => {
+              if (p.id === newReaction.post_id) {
+                if (p.reactions.some(r => r.user_id === newReaction.user_id && r.emoji === newReaction.emoji)) return p
+                const filtered = p.reactions.filter(r => r.user_id !== newReaction.user_id)
+                return { ...p, reactions: [...filtered, { emoji: newReaction.emoji, user_id: newReaction.user_id }] }
+              }
+              return p
+            }))
+          } else if (payload.eventType === 'DELETE') {
+            const oldReaction = payload.old as { post_id: string; user_id: string }
+            setPosts(prev => prev.map(p => {
+              if (p.id === oldReaction.post_id) {
+                return { ...p, reactions: p.reactions.filter(r => r.user_id !== oldReaction.user_id) }
+              }
+              return p
+            }))
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("REALTIME_SUBSCRIBED (detail posts)", status)
+      })
 
     return () => { supabase.removeChannel(channel) }
   }, [classroom.id, isSeedClassroom])

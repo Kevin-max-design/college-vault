@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 export interface ChatMessage {
   id: string
@@ -83,6 +84,59 @@ export default function DirectChatWidget({
         .catch(err => console.error('Failed to sync chat history:', err))
     }
   }, [storageKey, classroomId, recipient.id, currentUserId, isRealUser, initialMessage, recipient.handle])
+
+  // 3. Supabase Realtime channel subscription for peer messages
+  useEffect(() => {
+    if (!isRealUser || !classroomId || !recipient.id) return
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`classroom-peer-chat:${classroomId}:${recipient.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'peer_messages',
+          filter: `classroom_id=eq.${classroomId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as any
+          console.log('REALTIME_EVENT (peer_messages)', payload)
+
+          // Check if this message belongs to the current conversation
+          if (
+            (newMsg.sender_id === currentUserId && newMsg.receiver_id === recipient.id) ||
+            (newMsg.sender_id === recipient.id && newMsg.receiver_id === currentUserId)
+          ) {
+            const uiMsg: ChatMessage = {
+              id: newMsg.id,
+              sender: newMsg.sender_id === currentUserId ? 'me' : 'other',
+              text: newMsg.body,
+              time: newMsg.created_at,
+            }
+
+            setMessages((prev) => {
+              // Avoid duplicates
+              if (prev.some((m) => m.id === uiMsg.id)) return prev
+              // Remove matching optimistic message if any
+              const filtered = prev.filter(m => m.id !== uiMsg.id && !(m.id.startsWith('temp-') && m.text === uiMsg.text))
+              const updated = [...filtered, uiMsg]
+              // Update localStorage cache as well
+              localStorage.setItem(storageKey, JSON.stringify(updated))
+              return updated
+            })
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("REALTIME_SUBSCRIBED (peer_messages)", status)
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [classroomId, recipient.id, currentUserId, isRealUser, storageKey])
 
   // Scroll to bottom on message updates
   useEffect(() => {

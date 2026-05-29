@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 /* ── Bottom nav tabs matching the PNG ───────────────────────────── */
 interface NavItem {
@@ -364,10 +365,68 @@ export default function AppShell({
     // Initial load
     fetchFreshNotifications()
 
-    // 3. Periodic Background Sync (Poll every 15 seconds)
+    // 3. Periodic Background Sync (Poll every 15 seconds as a fallback)
     const interval = setInterval(fetchFreshNotifications, 15000)
 
-    return () => clearInterval(interval)
+    // 4. Supabase Realtime channel subscription for user_notifications
+    const supabase = createClient()
+    let channel: any = null
+    let isMounted = true
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!isMounted || !user) return
+
+      channel = supabase
+        .channel(`user-notifications:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'user_notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newNotif = payload.new as any
+            console.log('REALTIME_EVENT (user_notifications)', payload)
+
+            const formatted: NotificationItem = {
+              id: newNotif.id,
+              type: newNotif.type,
+              title: newNotif.title,
+              body: newNotif.body,
+              link: newNotif.link,
+              read: newNotif.read,
+              time: newNotif.created_at || new Date().toISOString(),
+              category: newNotif.category || 'general',
+              priority: newNotif.priority || 'normal',
+              source: newNotif.source || 'system',
+            }
+
+            setNotifications(prev => {
+              if (prev.some(n => n.id === formatted.id)) return prev
+              const updated = [formatted, ...prev]
+              localStorage.setItem('cv_notifications', JSON.stringify(updated))
+              return updated
+            })
+
+            // Trigger beautiful slide-in custom notification toast
+            setToast(formatted)
+            setTimeout(() => setToast(null), 5000)
+          }
+        )
+        .subscribe((status) => {
+          console.log("REALTIME_SUBSCRIBED (user_notifications)", status)
+        })
+    })
+
+    return () => {
+      isMounted = false
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+      clearInterval(interval)
+    }
   }, [])
 
   // Auto-close dropdown when clicking outside
