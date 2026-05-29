@@ -331,7 +331,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                             body: JSON.stringify({
                               listing_id: listing.id,
                               receiver_id: listing.seller_id,
-                              content: `Hi! I'm interested in your listing: "${listing.title}"`,
+                              body: `Hi! I'm interested in your listing: "${listing.title}"`,
                             }),
                           })
                           if (res.ok) {
