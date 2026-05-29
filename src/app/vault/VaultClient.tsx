@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 
 const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget'), {
@@ -44,10 +44,19 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [activeType, setActiveType] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchVal, setSearchVal] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successToast, setSuccessToast] = useState(false)
   const [activeChat, setActiveChat] = useState<{ recipientId: string; handle: string; listingId: string } | null>(null)
+
+  // Debounce search input to avoid heavy calculations on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchVal)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchVal])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -58,13 +67,15 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
     category: 'books',
   })
 
-  // Filter listings
-  const filteredListings = listings.filter((listing) => {
-    if (activeCategory !== 'all' && listing.category !== activeCategory) return false
-    if (activeType !== 'all' && listing.type !== activeType) return false
-    if (searchQuery && !listing.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
-    return true
-  })
+  // Memoize filtered listings to avoid repeated filtering on unrelated state updates
+  const filteredListings = useMemo(() => {
+    return listings.filter((listing) => {
+      if (activeCategory !== 'all' && listing.category !== activeCategory) return false
+      if (activeType !== 'all' && listing.type !== activeType) return false
+      if (searchQuery && !listing.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
+      return true
+    })
+  }, [listings, activeCategory, activeType, searchQuery])
 
   async function handlePostListing(e: React.FormEvent) {
     e.preventDefault()
@@ -124,8 +135,8 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
         <input
           type="text"
           placeholder="Search textbooks, lab coats, laptops..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={searchVal}
+          onChange={(e) => setSearchVal(e.target.value)}
           style={{
             width: '100%',
             padding: '12px 16px',

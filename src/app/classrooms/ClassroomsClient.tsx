@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 
 /* ── Types ────────────────────────────────────────────────────────── */
@@ -262,7 +262,9 @@ export default function ClassroomsClient({ classroomsByYear, department, userYea
   const [filter, setFilter] = useState<Filter>('all')
 
   const classrooms = classroomsByYear[selectedYear] ?? []
-  const filtered = filter === 'all' ? classrooms : classrooms.filter(c => c.subject_type === filter)
+  const filtered = useMemo(() => {
+    return filter === 'all' ? classrooms : classrooms.filter(c => c.subject_type === filter)
+  }, [classrooms, filter])
 
   return (
     <div className="px-4 py-5 max-w-xl mx-auto">

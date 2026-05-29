@@ -26,7 +26,7 @@ export default async function VaultPage() {
   const { data: initialListings } = await supabase
     .from('listings')
     .select(`
-      *,
+      id, seller_id, title, description, price, type, category, status, images, created_at,
       seller:profiles!listings_seller_id_fkey(id, full_name, avatar_url, department)
     `)
     .order('created_at', { ascending: false })
@@ -44,6 +44,11 @@ export default async function VaultPage() {
     ? (fullName.split(' ').slice(0, 2).map((n: string) => n ? n[0] : '').join('').toUpperCase() || 'U')
     : 'U'
 
+  const listingsProps = (initialListings ?? []).map((l: any) => ({
+    ...l,
+    seller: Array.isArray(l.seller) ? l.seller[0] : l.seller,
+  }))
+
   return (
     <AppShell 
       pageTitle="VAULT"
@@ -52,7 +57,7 @@ export default async function VaultPage() {
     >
       <VaultClient
         currentUser={{ id: auth.user.id, email: auth.user.email ?? '' }}
-        initialListings={initialListings ?? []}
+        initialListings={listingsProps as any}
       />
     </AppShell>
   )
