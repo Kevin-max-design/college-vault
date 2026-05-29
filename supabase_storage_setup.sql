@@ -20,10 +20,9 @@ DROP POLICY IF EXISTS "Allow authenticated delete access on avatars" ON storage.
 
 -- ── 3  Create Secure Storage Policies ─────────────────────────────
 
--- 3.1  Public Select: Anyone can view avatar images
-CREATE POLICY "Allow public select access on avatars"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'avatars' );
+-- NOTE: No SELECT policy is created. Because the 'avatars' bucket is public,
+-- files are served automatically via public CDN URLs without requiring an RLS SELECT policy.
+-- Removing the SELECT policy prevents clients from listing all files in the bucket.
 
 -- 3.2  Authenticated Insert: Users can only upload their own avatar files.
 -- Supports both folder-prefixed 'avatars/user_id.ext' and plain 'user_id.ext' paths.
