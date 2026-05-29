@@ -582,44 +582,33 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
 
   const router = useRouter()
 
-  // Seed classrooms have non-UUID IDs (e.g. "y2-1") — disable DB operations
+  // isSeedClassroom: true ONLY in degraded mode (DB unavailable, slug resolution failed).
+  // In normal operation, page.tsx resolves seed slugs to real UUIDs so this is always false.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isSeedClassroom = !UUID_RE.test(classroom.id)
-  // Debounce timer ref for localStorage writes
-  const lsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Initialize dynamic session nickname upon classroom entry
   useEffect(() => {
     setMounted(true)
     let storedId = localStorage.getItem(`cv_unique_id_${classroom.id}`)
     let storedHandle = localStorage.getItem(`cv_unique_handle_${classroom.id}`)
-    
+
     if (!storedId) {
       storedId = 'u_' + Math.random().toString(36).substring(2, 11)
       localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
     }
     if (!storedHandle) {
       storedHandle = 'u/Theory_Scholar_' + Math.random().toString(36).substring(2, 6)
-      localStorage.setItem(`cv_unique_id_${classroom.id}`, storedId)
+      // Fixed: was accidentally saving storedId again instead of storedHandle
+      localStorage.setItem(`cv_unique_handle_${classroom.id}`, storedHandle)
     }
-    
+
+    // Clear any stale localStorage seed posts — Supabase is now the single source of truth
+    localStorage.removeItem(`cv_seed_posts_${classroom.id}`)
+
     setCurrentUserId(storedId)
     setCurrentUserHandle(storedHandle)
   }, [classroom.id])
-
-  // Load posts from localStorage if it's a seed classroom
-  useEffect(() => {
-    if (isSeedClassroom) {
-      const stored = localStorage.getItem(`cv_seed_posts_${classroom.id}`)
-      if (stored) {
-        try {
-          setPosts(flattenPosts(JSON.parse(stored)))
-        } catch (e) {
-          console.error(e)
-        }
-      }
-    }
-  }, [classroom.id, isSeedClassroom])
 
   // Check if enrolled on first visit, do not auto-enroll to let user manually tap "Join Classroom"
   useEffect(() => {
@@ -680,9 +669,9 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     }
   }, [classroom.id, seatCode, isSeedClassroom])
 
-  // ── Supabase Realtime: live new-post subscription (real classrooms only) ──
+  // ── Supabase Realtime: live new-post subscription ──────────────────────────
   useEffect(() => {
-    if (isSeedClassroom) return // seed classrooms use localStorage, no Realtime
+    if (isSeedClassroom) return // degraded mode: skip Realtime if DB unavailable
 
     const supabase = createClient()
     const channel = supabase
@@ -717,39 +706,15 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
     return () => { supabase.removeChannel(channel) }
   }, [classroom.id, isSeedClassroom])
 
-  const saveLocalPosts = useCallback((updatedPosts: Post[]) => {
-    setPosts(updatedPosts)
-    // Debounce localStorage write — max 1 write per 300ms
-    if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-    lsTimerRef.current = setTimeout(() => {
-      localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updatedPosts))
-    }, 300)
-  }, [classroom.id])
-
-  /* Add a reply into the tree in-memory (needed for classmate's auto reply trigger) */
-  const addReply = useCallback((parentId: string, newPost: Post) => {
-    setPosts(prev => {
-      const updated = [newPost, ...prev]
-      if (isSeedClassroom) {
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-      }
-      return updated
-    })
-  }, [classroom.id, isSeedClassroom])
+  /* Add a reply into the tree in-memory (used for simulated classmate auto-replies) */
+  const addReply = useCallback((_parentId: string, newPost: Post) => {
+    setPosts(prev => [newPost, ...prev])
+  }, [])
 
   const handleResolve = useCallback(async (postId: string) => {
     if (isSeedClassroom) {
-      setPosts(prev => {
-        const updated = prev.map(p => p.id === postId ? { ...p, resolved: !p.resolved } : p)
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-        return updated
-      })
+      // Degraded mode: optimistic resolve only (no DB connection)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, resolved: !p.resolved } : p))
       return
     }
     const res = await fetch(`/api/posts/${postId}/resolve`, { method: 'PATCH' })
@@ -757,26 +722,18 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       const updated = await res.json()
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, resolved: updated.resolved } : p))
     }
-  }, [classroom.id, isSeedClassroom])
+  }, [isSeedClassroom])
 
   const handleVote = useCallback(async (postId: string, direction: 'up' | 'down') => {
     if (isSeedClassroom) {
-      setPosts(prev => {
-        const updated = prev.map(p => {
-          if (p.id === postId) {
-            const reactions = p.reactions.filter(r => r.user_id !== userId)
-            const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
-            if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
-            return { ...p, reactions }
-          }
-          return p
-        })
-        if (lsTimerRef.current) clearTimeout(lsTimerRef.current)
-        lsTimerRef.current = setTimeout(() => {
-          localStorage.setItem(`cv_seed_posts_${classroom.id}`, JSON.stringify(updated))
-        }, 300)
-        return updated
-      })
+      // Degraded mode: optimistic vote only (no DB connection)
+      setPosts(prev => prev.map(p => {
+        if (p.id !== postId) return p
+        const reactions = p.reactions.filter(r => r.user_id !== userId)
+        const clickedBefore = p.reactions.find(r => r.user_id === userId && r.emoji === direction)
+        if (!clickedBefore) reactions.push({ emoji: direction, user_id: userId })
+        return { ...p, reactions }
+      }))
       return
     }
 
@@ -827,17 +784,13 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       setPosts(previousPosts)
       alert(err.message || 'Network error — failed to register vote.')
     }
-  }, [classroom.id, isSeedClassroom, userId, posts])
+  }, [isSeedClassroom, userId, posts])
 
   function handlePosted(newPost: Post) {
-    let updated = posts
-    if (isSeedClassroom) {
-      updated = [{ ...newPost, replies: [] }, ...posts]
-      saveLocalPosts(updated)
-    } else {
-      setPosts(prev => [{ ...newPost, replies: [] }, ...prev])
-      router.refresh()
-    }
+    // Optimistically prepend the new post; Realtime will dedupe if it fires first
+    setPosts(prev => [{ ...newPost, replies: [] }, ...prev])
+    // Refresh server-side post cache (for next navigation to this page)
+    if (!isSeedClassroom) router.refresh()
 
     // Classroom auto classmate response simulation
     setTimeout(() => {
@@ -1060,8 +1013,14 @@ export default function ClassroomDetailClient({ classroom, initialPosts, doubtCo
       {/* Thread list */}
       {filtered.length === 0 ? (
         <div style={{ border: '2px dashed #bec9c9', padding: '40px 20px', textAlign: 'center', marginBottom: 20 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 40, color: '#bec9c9', display: 'block', marginBottom: 10 }}>forum</span>
-          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#6e7979' }}>No posts yet — tap "Post Doubt" to start the conversation.</p>
+          <span className="material-symbols-outlined" style={{ fontSize: 40, color: '#bec9c9', display: 'block', marginBottom: 10 }}>
+            {!seatCode && !isSeedClassroom ? 'lock' : 'forum'}
+          </span>
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#6e7979' }}>
+            {!seatCode && !isSeedClassroom
+              ? 'Join this classroom to view and post discussions.'
+              : 'No posts yet — tap "Post Doubt" to start the conversation.'}
+          </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 40 }}>

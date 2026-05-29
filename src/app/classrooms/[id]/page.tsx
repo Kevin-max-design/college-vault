@@ -122,10 +122,10 @@ export default async function ClassroomDetailPage({ params }: Props) {
     : 'U'
 
   const isUuid = UUID_REGEX.test(id)
-  let dbClassroom = null
+  let dbClassroom: any = null
 
-  // Only query DB if the ID is in valid UUID format
   if (isUuid) {
+    // ── Standard UUID classroom lookup ─────────────────────────────
     try {
       const { data } = await supabase
         .from('classrooms')
@@ -136,31 +136,70 @@ export default async function ClassroomDetailPage({ params }: Props) {
     } catch (err) {
       console.error('[ClassroomDetail] Error loading DB classroom:', err)
     }
+  } else {
+    // ── Slug-based lookup: find or create seed classroom in Supabase ─
+    // This makes all seed classrooms Supabase-backed so every user on
+    // every device shares the same post feed for the same classroom.
+    const seedData = SEED_CLASSROOMS[id]
+    if (seedData) {
+      try {
+        const { data: resolved, error: rpcErr } = await supabase.rpc(
+          'find_or_create_seed_classroom',
+          {
+            p_slug:         id,
+            p_name:         seedData.name,
+            p_subject_type: seedData.subject_type,
+            p_type:         seedData.type ?? 'study',
+            p_department:   seedData.department,
+            p_year:         seedData.year,
+            p_description:  seedData.description || '',
+          }
+        )
+        if (rpcErr) {
+          console.error('[ClassroomDetail] RPC find_or_create_seed_classroom error:', rpcErr.message)
+        } else if (Array.isArray(resolved) && resolved.length > 0) {
+          dbClassroom = resolved[0]
+          console.log('[ClassroomDetail] Seed classroom resolved via slug:', id, '→ uuid:', dbClassroom.id)
+        }
+      } catch (err) {
+        console.error('[ClassroomDetail] Error resolving seed classroom by slug:', err)
+      }
+    }
   }
 
-  // Fall back to seed data if not in DB or if it's a seed ID
+  // Fall back to in-memory seed metadata ONLY if DB is unreachable (graceful degradation)
   const classroom = dbClassroom ?? SEED_CLASSROOMS[id] ?? null
 
-  // If neither DB nor seed, redirect back
+  // If neither DB nor seed, redirect
   if (!classroom) redirect('/classrooms')
 
+  // isSeedClassroom is true ONLY in degraded mode (DB unavailable).
+  // Normally dbClassroom is always resolved, making isSeedClassroom = false,
+  // which activates all Supabase paths in ClassroomDetailClient.
   const isSeedClassroom = !dbClassroom && !!SEED_CLASSROOMS[id]
 
   let posts: any[] = []
   let doubtCount = 0
 
-  if (!isSeedClassroom && isUuid) {
+  // Always use the real Supabase UUID for post queries
+  const classroomUUID: string | null = dbClassroom?.id ?? null
+
+  if (classroomUUID) {
     try {
-      const { data: rawPosts } = await supabase
+      const { data: rawPosts, error: postsErr } = await supabase
         .from('posts')
         .select(`
           id, content, type, resolved, created_at, parent_id,
           author:profiles!posts_author_id_fkey(id, full_name, avatar_url, role),
           reactions(emoji, user_id)
         `)
-        .eq('classroom_id', id)
+        .eq('classroom_id', classroomUUID)
         .order('created_at', { ascending: true })
         .limit(100)
+
+      if (postsErr) {
+        console.error('[ClassroomDetail] posts query error:', postsErr.message)
+      }
 
       if (rawPosts) {
         posts = rawPosts.map((p: any) => ({
@@ -178,91 +217,26 @@ export default async function ClassroomDetailPage({ params }: Props) {
       const { count } = await supabase
         .from('posts')
         .select('*', { count: 'exact', head: true })
-        .eq('classroom_id', id)
+        .eq('classroom_id', classroomUUID)
         .eq('type', 'doubt')
         .eq('resolved', false)
 
       doubtCount = count ?? 0
+
+      console.log(
+        '[ClassroomDetail] classroomId:', classroomUUID,
+        'userId:', user.id,
+        'posts fetched:', posts.length,
+        'open doubts:', doubtCount,
+      )
     } catch (err) {
-      console.error('[ClassroomDetail] Error loading DB posts:', err)
+      console.error('[ClassroomDetail] Error loading posts:', err)
     }
-  } else {
-    // Curated pre-populated seed posts for project classrooms
-    if (id === 'proj-vault-redesign') {
-      posts = [
-        {
-          id: 'p-vr-1',
-          content: '🚀 PROJECT UPDATE: I have successfully enabled Dynamic imports & route-splitting across the CampusVault platform. The initial bundle size dropped significantly, achieving a 45% faster load time. Let us keep the app responsive!',
-          type: 'announcement',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-          parent_id: null,
-          author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }, { emoji: 'up', user_id: 'user-2' }],
-          replies: []
-        },
-        {
-          id: 'p-vr-2',
-          content: 'Is anyone else facing issues with Supabase OTP email limits during local testing? Every time I try registering more than 3 students, it throws a rate limit.',
-          type: 'doubt',
-          resolved: true,
-          created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
-          parent_id: null,
-          author: { id: 'dev-2', full_name: 'u/Frontend_Ninja', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-3' }],
-          replies: [
-            {
-              id: 'p-vr-2-r1',
-              content: 'Yes! We just replaced it with email/password auth under /onboarding/verify so you do not need OTPs anymore. Make sure to turn off Confirm Email in your local Supabase dashboard settings!',
-              type: 'thread',
-              resolved: false,
-              created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-              parent_id: 'p-vr-2',
-              author: { id: 'admin-dev', full_name: 'u/Lead_Architect_99', avatar_url: null, role: 'student' },
-              reactions: [{ emoji: 'up', user_id: 'user-2' }],
-              replies: []
-            }
-          ]
-        },
-        {
-          id: 'p-vr-3',
-          content: 'Here is the Figma link for the new CampusVault color guidelines: Amber (#fea619), Teal (#00595c) and Earth-slate. Please follow this style guide for all custom CSS contributions.',
-          type: 'material',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-          parent_id: null,
-          author: { id: 'designer-1', full_name: 'u/UI_Wizard', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }],
-          replies: []
-        }
-      ]
-    } else if (id === 'proj-ml-fundamentals') {
-      posts = [
-        {
-          id: 'p-ml-1',
-          content: '📢 WEEKLY SEMINAR: We are starting our first hands-on session on convolutional neural networks (CNNs) this Saturday at 2 PM. We will build a handwritten digit classifier from scratch!',
-          type: 'announcement',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-          parent_id: null,
-          author: { id: 'ml-lead', full_name: 'u/ML_Guru_101', avatar_url: null, role: 'faculty' },
-          reactions: [{ emoji: 'up', user_id: 'user-1' }],
-          replies: []
-        },
-        {
-          id: 'p-ml-2',
-          content: 'Could someone explain why we prefer the ReLU activation function over Sigmoid or Tanh in deep hidden layers of a network? Does it actually prevent vanishing gradients?',
-          type: 'doubt',
-          resolved: false,
-          created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-          parent_id: null,
-          author: { id: 'student-ml', full_name: 'u/Curious_Neural_Net', avatar_url: null, role: 'student' },
-          reactions: [{ emoji: 'up', user_id: 'user-2' }],
-          replies: []
-        }
-      ]
-    }
-    doubtCount = posts.filter(p => p.type === 'doubt' && !p.resolved).length
+  } else if (isSeedClassroom) {
+    // Degraded mode only: static seed posts when DB is unreachable.
+    // These are intentionally minimal so users see they need to retry.
+    console.warn('[ClassroomDetail] DB unavailable — degraded mode for slug:', id)
+    doubtCount = 0
   }
 
   return (
