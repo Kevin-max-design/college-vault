@@ -8,6 +8,12 @@ export interface ChatMessage {
   sender: 'me' | 'other'
   text: string
   time: string
+  body?: string
+  sender_id?: string
+  receiver_id?: string
+  conversation_id?: string
+  created_at?: string
+  pending?: boolean
 }
 
 interface DirectDMWidgetProps {
@@ -26,6 +32,7 @@ export default function DirectDMWidget({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [sending, setSending] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   
   const storageKey = `cv_direct_chat_${conversationId}`
@@ -88,23 +95,44 @@ export default function DirectDMWidget({
         },
         (payload) => {
           const newMsg = payload.new as any
-          console.log('[DIRECT_DM] Realtime insert payload:', payload)
+          console.log("DM_REALTIME_EVENT", newMsg.id)
 
           const uiMsg: ChatMessage = {
             id: newMsg.id,
             sender: newMsg.sender_id === currentUserId ? 'me' : 'other',
             text: newMsg.body,
             time: newMsg.created_at,
+            body: newMsg.body,
+            sender_id: newMsg.sender_id,
+            receiver_id: newMsg.receiver_id,
+            conversation_id: newMsg.conversation_id,
+            created_at: newMsg.created_at,
           }
 
           setMessages((prev) => {
-            // Avoid duplicates
-            if (prev.some((m) => m.id === uiMsg.id)) return prev
-            // Remove matching optimistic message if any
-            const filtered = prev.filter(
-              (m) => m.id !== uiMsg.id && !(m.id.startsWith('temp-') && m.text === uiMsg.text)
+            // Avoid duplicates by exact id
+            const exists = prev.some((m) => m.id === uiMsg.id)
+            if (exists) {
+              console.log("DM_DEDUPE_SKIP", uiMsg.id)
+              return prev
+            }
+
+            // Look for matching pending temp message from same sender with same body and close timestamp
+            const tempIndex = prev.findIndex((m) =>
+              m.id.startsWith("temp-") &&
+              (m.sender_id === uiMsg.sender_id || (m.sender === 'me' && uiMsg.sender === 'me')) &&
+              (m.body === uiMsg.body || m.text === uiMsg.text) &&
+              Math.abs(new Date(m.created_at || m.time).getTime() - new Date(uiMsg.created_at || uiMsg.time).getTime()) < 10000
             )
-            const updated = [...filtered, uiMsg]
+
+            let updated: ChatMessage[]
+            if (tempIndex !== -1) {
+              updated = [...prev]
+              updated[tempIndex] = uiMsg
+            } else {
+              updated = [...prev, uiMsg]
+            }
+
             localStorage.setItem(storageKey, JSON.stringify(updated))
             return updated
           })
@@ -117,7 +145,7 @@ export default function DirectDMWidget({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [conversationId, currentUserId, storageKey])
+  }, [conversationId, currentUserId])
 
   // 4. Scroll to bottom on updates
   useEffect(() => {
@@ -133,22 +161,30 @@ export default function DirectDMWidget({
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!text.trim() || !currentUserId) return
+    if (!text.trim() || !currentUserId || sending) return
 
     const messageText = text.trim()
     const tempId = `temp-${Date.now()}`
+    console.log("DM_SEND_OPTIMISTIC", tempId)
 
     const newMsg: ChatMessage = {
       id: tempId,
       sender: 'me',
       text: messageText,
       time: new Date().toISOString(),
+      body: messageText,
+      sender_id: currentUserId,
+      receiver_id: receiverId,
+      conversation_id: conversationId,
+      created_at: new Date().toISOString(),
+      pending: true,
     }
 
     const previousMessages = messages
     const updated = [...messages, newMsg]
     saveMessages(updated)
     setText('')
+    setSending(true)
 
     try {
       const res = await fetch(`/api/direct-conversations/${conversationId}/messages`, {
@@ -164,24 +200,56 @@ export default function DirectDMWidget({
       } else {
         const data = await res.json()
         if (data?.message) {
+          const realMessage = data.message
+          console.log("DM_API_SUCCESS", realMessage.id)
+
           const dbMsg: ChatMessage = {
-            id: data.message.id,
+            id: realMessage.id,
             sender: 'me',
-            text: data.message.body,
-            time: data.message.created_at,
+            text: realMessage.body,
+            time: realMessage.created_at,
+            body: realMessage.body,
+            sender_id: realMessage.sender_id,
+            receiver_id: realMessage.receiver_id,
+            conversation_id: realMessage.conversation_id,
+            created_at: realMessage.created_at,
           }
-          // Replace temp with official
+
           setMessages((prev) => {
-            const filtered = prev.filter((m) => m.id !== tempId)
-            const next = [...filtered, dbMsg]
-            localStorage.setItem(storageKey, JSON.stringify(next))
-            return next
+            // Avoid duplicates by exact id
+            const exists = prev.some((m) => m.id === dbMsg.id)
+            if (exists) {
+              console.log("DM_DEDUPE_SKIP", dbMsg.id)
+              return prev
+            }
+
+            // Look for the specific tempId we just sent, or general matching temp message
+            const tempIndex = prev.findIndex((m) =>
+              m.id === tempId ||
+              (m.id.startsWith("temp-") &&
+               (m.sender_id === dbMsg.sender_id || (m.sender === 'me' && dbMsg.sender === 'me')) &&
+               (m.body === dbMsg.body || m.text === dbMsg.text) &&
+               Math.abs(new Date(m.created_at || m.time).getTime() - new Date(dbMsg.created_at || dbMsg.time).getTime()) < 10000)
+            )
+
+            let updated: ChatMessage[]
+            if (tempIndex !== -1) {
+              updated = [...prev]
+              updated[tempIndex] = dbMsg
+            } else {
+              updated = [...prev, dbMsg]
+            }
+
+            localStorage.setItem(storageKey, JSON.stringify(updated))
+            return updated
           })
         }
       }
     } catch (err: any) {
       saveMessages(previousMessages)
       alert(err.message || 'Network error — failed to send message.')
+    } finally {
+      setSending(false)
     }
   }
 
@@ -310,7 +378,7 @@ export default function DirectDMWidget({
             fontFamily: 'var(--font-jakarta)',
           }}
         />
-        <button type="submit" disabled={!text.trim() || !currentUserId} style={{
+        <button type="submit" disabled={!text.trim() || !currentUserId || sending} style={{
           background: '#fea619',
           border: '2.5px solid #00595c',
           color: '#684000',
