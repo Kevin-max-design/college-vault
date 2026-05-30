@@ -136,46 +136,30 @@ export default async function HomePage() {
           )}
         </section>
 
-        {/* ── Today Panel (Compact Summary) ───────────────────── */}
-        <section className="bg-[#fbf9f4] border-2 border-[#bec9c9] p-4 rounded-xl flex flex-col gap-3">
-          <h3 className="font-jakarta font-black text-[0.7rem] uppercase tracking-wider text-[#00595c] flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-base">today</span>
-            Today at Campus Vault
-          </h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Classrooms summary */}
-            <div className="bg-white border border-[#bec9c9] p-3 rounded-lg flex flex-col gap-1">
-              <span className="font-jakarta text-[0.62rem] font-bold text-[#6e7979] uppercase">Classrooms</span>
-              <p className="font-jakarta text-xs font-semibold text-[#1a1a1a] truncate">
-                Ask doubts, share materials
-              </p>
+        {/* ── Today Panel (Ultra-Compact Status Bar) ──────────────── */}
+        <section className="bg-[#fbf9f4] border border-[#bec9c9] p-3 rounded-lg flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.68rem] font-jakarta text-[#6e7979] font-bold">
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-base text-[#0d7377]">school</span>
+              <span>Classrooms: Active</span>
             </div>
-
-            {/* Marketplace summary */}
-            <div className="bg-white border border-[#bec9c9] p-3 rounded-lg flex flex-col gap-1">
-              <span className="font-jakarta text-[0.62rem] font-bold text-[#6e7979] uppercase">Marketplace</span>
-              <p className="font-jakarta text-xs font-semibold text-[#1a1a1a] truncate">
-                Buy &amp; sell textbooks/gear
-              </p>
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-base text-[#fea619]">storefront</span>
+              <span>Marketplace: Active</span>
             </div>
-
-            {/* Club Status summary */}
-            <div className="bg-white border border-[#bec9c9] p-3 rounded-lg flex flex-col gap-1">
-              <span className="font-jakarta text-[0.62rem] font-bold text-[#6e7979] uppercase">My Club</span>
-              <p className="font-jakarta text-xs font-semibold text-[#1a1a1a] truncate">
-                {userClub ? `🏆 ${userClub.name} (${userClub.status})` : '✨ No active club joined'}
-              </p>
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-base text-[#2e7d32]">groups</span>
+              <span>{userClub ? `Club: ${userClub.name} (${userClub.status})` : 'No club joined'}</span>
             </div>
           </div>
-
-          {/* Latest Notice Banner */}
           {latestNotice && (
-            <div className="bg-[#fffdf5] border border-[#fea619] p-2.5 rounded-lg flex items-center gap-2 text-xs font-jakarta text-[#855300]">
-              <span className="material-symbols-outlined text-sm font-bold text-[#fea619]">campaign</span>
-              <span className="font-bold">Latest Bulletin:</span>
-              <span className="truncate flex-1">{latestNotice.title}</span>
-              <Link href="/bulletin" className="underline font-black text-[#855300] flex-shrink-0 hover:text-primary">View Board</Link>
+            <div className="border-t border-[#bec9c9]/60 pt-2 flex items-center justify-between gap-2 text-[0.68rem] font-jakarta text-[#855300]">
+              <div className="flex items-center gap-1 truncate">
+                <span className="material-symbols-outlined text-base text-[#fea619]">campaign</span>
+                <span className="font-bold">Latest Bulletin:</span>
+                <span className="truncate font-semibold">{latestNotice.title}</span>
+              </div>
+              <Link href="/bulletin" className="underline font-black text-[#855300] hover:text-[#00595c] flex-shrink-0">View</Link>
             </div>
           )}
         </section>
