@@ -67,7 +67,9 @@ export default function ConnectClient() {
         const res = await fetch(`/api/connect/users?${queryParams.toString()}`)
         if (res.ok) {
           const data = await res.json()
-          setUsers(data.users || [])
+          const rawUsers = (data.users || []) as StudentUser[]
+          const studentOnly = rawUsers.filter(user => user.role === "student")
+          setUsers(studentOnly)
         } else {
           setError('Failed to load peers.')
         }

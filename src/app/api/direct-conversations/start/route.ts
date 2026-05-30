@@ -28,15 +28,33 @@ export async function POST(req: NextRequest) {
 
     const supabase = await getSupabaseClient();
 
-    // 1. Fetch receiver's profile & DM privacy settings
+    // 1. Fetch sender's & receiver's profiles and role info
+    const { data: senderProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", senderId)
+      .single();
+
+    if (!senderProfile || senderProfile.role !== "student") {
+      return NextResponse.json({
+        error: "Direct messaging through Connect is allowed for students only."
+      }, { status: 403 });
+    }
+
     const { data: receiver, error: recErr } = await supabase
       .from("profiles")
-      .select("department, dm_privacy, profile_visibility")
+      .select("role, department, dm_privacy, profile_visibility")
       .eq("id", receiver_id)
       .single();
 
     if (recErr || !receiver) {
       return NextResponse.json({ error: "Target student profile not found." }, { status: 404 });
+    }
+
+    if (receiver.role !== "student") {
+      return NextResponse.json({
+        error: "Direct messaging through Connect is allowed between students only."
+      }, { status: 403 });
     }
 
     const privacy = receiver.dm_privacy || "everyone";
