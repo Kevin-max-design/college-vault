@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface YearLimit {
@@ -151,6 +152,8 @@ export default function AdminClubsPage() {
     setEditLimits(init)
   }, [clubs])
 
+
+
   const handleSaveLimits = async (clubId: string) => {
     setSavingLimits(clubId)
     setError('')
@@ -221,7 +224,7 @@ export default function AdminClubsPage() {
     }
   }
 
-  const fetchMembers = async (clubId: string) => {
+  const fetchMembers = useCallback(async (clubId: string) => {
     setSelectedClub(clubId)
     setLoadingMembers(true)
     try {
@@ -235,7 +238,85 @@ export default function AdminClubsPage() {
     } finally {
       setLoadingMembers(false)
     }
-  }
+  }, [])
+
+  // Cache selected club ID in a ref to keep realtime subscription stable
+  const selectedClubRef = useRef(selectedClub)
+  useEffect(() => {
+    selectedClubRef.current = selectedClub
+  }, [selectedClub])
+
+  // Realtime subscription in admin/clubs
+  useEffect(() => {
+    const supabase = createClient()
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleRefresh = () => {
+      console.log("CLUBS_REFETCH_START")
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(async () => {
+        await fetchClubs()
+        // If a club modal is open, also refresh members & waitlist
+        const currentClubId = selectedClubRef.current
+        if (currentClubId) {
+          await fetchMembers(currentClubId)
+        }
+        console.log("CLUBS_REFETCH_DONE")
+      }, 250)
+    }
+
+    const channel = supabase
+      .channel("admin-clubs-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "clubs" },
+        (payload) => {
+          console.log("CLUBS_REALTIME_EVENT", payload)
+          scheduleRefresh()
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "club_year_limits" },
+        (payload) => {
+          console.log("CLUBS_REALTIME_EVENT", payload)
+          scheduleRefresh()
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "club_members" },
+        (payload) => {
+          console.log("CLUBS_REALTIME_EVENT", payload)
+          scheduleRefresh()
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "club_payments" },
+        (payload) => {
+          console.log("CLUBS_REALTIME_EVENT", payload)
+          scheduleRefresh()
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "club_waitlist" },
+        (payload) => {
+          console.log("CLUBS_REALTIME_EVENT", payload)
+          scheduleRefresh()
+        }
+      )
+      .subscribe((status) => {
+        console.log("CLUBS_REALTIME_STATUS", status)
+      })
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchClubs, fetchMembers])
 
   const handleVerifyPayment = async (clubId: string, paymentId: string) => {
     setVerifying(paymentId)

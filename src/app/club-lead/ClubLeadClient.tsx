@@ -158,23 +158,46 @@ export default function ClubLeadClient() {
   // Realtime update hook
   useEffect(() => {
     const supabase = createClient()
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleRefresh = () => {
+      console.log("CLUBS_REFETCH_START")
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(async () => {
+        await fetchDashboard()
+        console.log("CLUBS_REFETCH_DONE")
+      }, 250)
+    }
+
     const channel = supabase
-      .channel('club-lead-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_members' }, () => {
-        fetchDashboard()
+      .channel('club-lead-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clubs' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_year_limits' }, () => {
-        fetchDashboard()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_year_limits' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_waitlist' }, () => {
-        fetchDashboard()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_members' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_payments' }, () => {
-        fetchDashboard()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_payments' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_waitlist' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
+      })
+      .subscribe((status) => {
+        console.log("CLUBS_REALTIME_STATUS", status)
+      })
 
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
       supabase.removeChannel(channel)
     }
   }, [fetchDashboard])

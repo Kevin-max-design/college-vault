@@ -89,23 +89,46 @@ export default function ClubsClient() {
   // Realtime subscription
   useEffect(() => {
     const supabase = createClient()
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleRefresh = () => {
+      console.log("CLUBS_REFETCH_START")
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(async () => {
+        await fetchClubs()
+        console.log("CLUBS_REFETCH_DONE")
+      }, 250)
+    }
+
     const channel = supabase
-      .channel('clubs-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_members' }, () => {
-        fetchClubs()
+      .channel('clubs-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clubs' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_year_limits' }, () => {
-        fetchClubs()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_year_limits' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_waitlist' }, () => {
-        fetchClubs()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_members' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_payments' }, () => {
-        fetchClubs()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_payments' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
       })
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_waitlist' }, (payload) => {
+        console.log("CLUBS_REALTIME_EVENT", payload)
+        scheduleRefresh()
+      })
+      .subscribe((status) => {
+        console.log("CLUBS_REALTIME_STATUS", status)
+      })
 
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
       supabase.removeChannel(channel)
     }
   }, [fetchClubs])
@@ -122,6 +145,35 @@ export default function ClubsClient() {
         return
       }
       setSuccess(data.message || 'Slot reserved!')
+      
+      // Update local state optimistically instantly
+      setClubs(prev => prev.map(c => {
+        if (c.id !== clubId) return c
+        if (data.result === 'reserved') {
+          return {
+            ...c,
+            my_membership: { id: data.member_id || 'temp-member', status: 'reserved', reserved_at: new Date().toISOString() },
+            my_payment: {
+              id: 'temp-payment',
+              status: 'pending',
+              amount: 200,
+              proof_url: null,
+              proof_uploaded_at: null,
+              payment_note: '',
+              notes: ''
+            },
+            year_limits: c.year_limits.map(yl => yl.year === userYear ? { ...yl, filled: yl.filled + 1 } : yl)
+          }
+        } else if (data.result === 'waitlisted') {
+          return {
+            ...c,
+            my_waitlist: { id: 'temp-waitlist', position: data.position || 1 }
+          }
+        }
+        return c
+      }))
+
+      // Initiate official refresh
       fetchClubs()
     } catch {
       setError('Something went wrong. Please try again.')
@@ -246,6 +298,8 @@ export default function ClubsClient() {
           const hasSlot = myYearLimit && myYearLimit.filled < myYearLimit.max_slots
           const isMember = !!club.my_membership
           const isWaitlisted = !!club.my_waitlist
+          const currentYearMax = myYearLimit ? myYearLimit.max_slots : 0
+          const currentYearFilled = myYearLimit ? myYearLimit.filled : 0
 
           return (
             <article
@@ -475,29 +529,64 @@ export default function ClubsClient() {
                   </div>
                 )}
 
-                {/* Reserve Button */}
-                {isEligible && club.is_open && !isMember && !isWaitlisted && (
-                  <button
-                    onClick={() => handleReserve(club.id)}
-                    disabled={reserving === club.id}
-                    className="bg-primary text-on-primary font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-primary shadow-[3px_3px_0px_0px_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed self-start"
-                  >
-                    {reserving === club.id ? (
-                      <span className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                        Reserving...
-                      </span>
-                    ) : hasSlot ? (
-                      'Reserve My Slot'
-                    ) : myYearLimit && myYearLimit.max_slots > 0 ? (
-                      'Join Waitlist'
+                {/* Action Button & Statuses */}
+                {isEligible && (
+                  <div className="flex flex-col gap-2 mt-2">
+                    {isMember ? (
+                      <button
+                        disabled
+                        className="bg-outline-variant text-outline font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-outline-variant shadow-[3px_3px_0px_0px_rgba(0,0,0,0.15)] cursor-not-allowed self-start"
+                      >
+                        {club.my_membership!.status === 'active' ? 'Verified Member' : 'Payment Pending'}
+                      </button>
+                    ) : isWaitlisted ? (
+                      <button
+                        disabled
+                        className="bg-outline-variant text-outline font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-outline-variant shadow-[3px_3px_0px_0px_rgba(0,0,0,0.15)] cursor-not-allowed self-start"
+                      >
+                        Waitlisted #{club.my_waitlist!.position}
+                      </button>
+                    ) : !club.is_open ? (
+                      <button
+                        disabled
+                        className="bg-outline-variant text-outline font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-outline-variant shadow-[3px_3px_0px_0px_rgba(0,0,0,0.15)] cursor-not-allowed self-start"
+                      >
+                        Registration Closed
+                      </button>
+                    ) : currentYearMax <= 0 ? (
+                      <div className="flex flex-col gap-1.5 self-start">
+                        <button
+                          disabled
+                          className="bg-outline-variant text-outline font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-outline-variant shadow-[3px_3px_0px_0px_rgba(0,0,0,0.15)] cursor-not-allowed"
+                        >
+                          Slots Not Configured
+                        </button>
+                        <p className="font-jakarta text-xs text-error font-medium">
+                          HOD/Admin has not opened slots for your year yet.
+                        </p>
+                      </div>
                     ) : (
-                      'Reserve My Slot'
+                      <button
+                        onClick={() => handleReserve(club.id)}
+                        disabled={reserving === club.id}
+                        className="bg-primary text-on-primary font-jakarta font-black text-[0.65rem] uppercase tracking-widest px-5 py-2.5 border-2 border-primary shadow-[3px_3px_0px_0px_#00595c] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_#00595c] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none cv-transition-btn cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                      >
+                        {reserving === club.id ? (
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                            Reserving...
+                          </span>
+                        ) : currentYearFilled >= currentYearMax ? (
+                          'Join Waitlist'
+                        ) : (
+                          'Reserve My Slot'
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
 
-                {!club.is_open && !isMember && !isWaitlisted && (
+                {!isEligible && !club.is_open && !isMember && !isWaitlisted && (
                   <p className="font-jakarta text-xs text-outline italic">
                     Registration is currently closed for this club.
                   </p>
