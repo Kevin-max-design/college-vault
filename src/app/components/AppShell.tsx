@@ -512,9 +512,8 @@ export default function AppShell({
 
   const markAllRead = async () => {
     const previous = notifications
-    const updated = notifications.map(n => ({ ...n, read: true }))
-    setNotifications(updated)
-    localStorage.setItem('cv_notifications', JSON.stringify(updated))
+    setNotifications([])
+    localStorage.setItem('cv_notifications', JSON.stringify([]))
 
     try {
       const res = await fetch('/api/notifications', {
@@ -535,7 +534,7 @@ export default function AppShell({
 
   const handleNotificationClick = async (item: NotificationItem) => {
     const previous = notifications
-    const updated = notifications.map(n => n.id === item.id ? { ...n, read: true } : n)
+    const updated = notifications.filter(n => n.id !== item.id)
     setNotifications(updated)
     localStorage.setItem('cv_notifications', JSON.stringify(updated))
     setShowPanel(false)
@@ -562,11 +561,14 @@ export default function AppShell({
 
   // Memoized filtered notifications based on active tab
   const filteredNotifications = useMemo(() => {
-    if (activeFilter === 'all') return notifications
+    // Render only unread/active notifications
+    const unreadOnly = notifications.filter(n => !n.read)
+
+    if (activeFilter === 'all') return unreadOnly
     if (activeFilter === 'important') {
-      return notifications.filter(n => n.priority === 'urgent' || n.priority === 'high')
+      return unreadOnly.filter(n => n.priority === 'urgent' || n.priority === 'high')
     }
-    return notifications.filter(n => {
+    return unreadOnly.filter(n => {
       const cat = n.category || TYPE_TO_CATEGORY[n.type] || 'general'
       if (activeFilter === 'academic') return ACADEMIC_CATEGORIES.has(cat)
       if (activeFilter === 'market') return MARKET_CATEGORIES.has(cat)

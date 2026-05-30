@@ -5,18 +5,26 @@ import { requireAuth, getSupabaseClient } from '@/lib/auth-helpers'
  * GET /api/notifications
  * Fetch all notifications for the authenticated user.
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const result = await requireAuth()
   if (result.error) return result.error
 
   const userId = result.user.id
   const supabase = await getSupabaseClient()
 
-  const { data, error } = await supabase
+  const { searchParams } = new URL(req.url)
+  const includeRead = searchParams.get('includeRead') === 'true'
+
+  let query = supabase
     .from('user_notifications')
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+
+  if (!includeRead) {
+    query = query.is('read_at', null)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false })
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -101,6 +109,7 @@ export async function PATCH(req: NextRequest) {
         .update({ read_at: new Date().toISOString() })
         .eq('id', id)
         .eq('user_id', userId)
+        .is('read_at', null)
         .select('*')
 
       if (error) {
@@ -108,11 +117,12 @@ export async function PATCH(req: NextRequest) {
       }
       return NextResponse.json({ success: true, updated: data })
     } else {
-      // Mark all user notifications as read
+      // Mark all unread user notifications as read
       const { data, error } = await supabase
         .from('user_notifications')
         .update({ read_at: new Date().toISOString() })
         .eq('user_id', userId)
+        .is('read_at', null)
         .select('*')
 
       if (error) {
