@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import AppShell from '@/app/components/AppShell'
+import MessageStudentButton from './MessageStudentButton'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -44,11 +45,11 @@ export default async function PublicProfilePage({ params }: Props) {
   // 4. Fetch target public profile
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, department, year_of_study, role, created_at')
+    .select('id, full_name, avatar_url, department, year_of_study, role, created_at, bio, interests, skills, study_goals, looking_for, profile_visibility, dm_privacy')
     .eq('id', profileId)
     .single()
 
-  if (profileErr || !profile) {
+  if (profileErr || !profile || profile.profile_visibility === 'hidden') {
     redirect('/vault')
   }
 
@@ -217,6 +218,57 @@ export default async function PublicProfilePage({ params }: Props) {
             </div>
           )}
         </section>
+
+        {/* ── Connect / Networking Info Card ────────────────────── */}
+        {(profile.bio || 
+          (profile.interests && profile.interests.length > 0) || 
+          (profile.skills && profile.skills.length > 0) ||
+          (profile.study_goals && profile.study_goals.length > 0) ||
+          (profile.looking_for && profile.looking_for.length > 0)) && (
+          <section className="bg-surface border-2 border-primary p-5 shadow-[4px_4px_0px_0px_#00595c] flex flex-col gap-4">
+            <h3 className="font-newsreader font-black text-xl text-primary border-b-2 border-primary pb-1.5 flex items-center gap-2">
+              <span className="material-symbols-outlined">diversity_3</span>
+              Campus Connect Profile
+            </h3>
+
+            {profile.bio && (
+              <div>
+                <span className="label-caps block text-[0.6rem] text-outline mb-1">Short Bio</span>
+                <p className="font-jakarta text-xs text-primary leading-relaxed">{profile.bio}</p>
+              </div>
+            )}
+
+            {[
+              { label: 'Interests', tags: profile.interests, color: '#0d7377', bg: '#eafaf9' },
+              { label: 'Skills', tags: profile.skills, color: '#855300', bg: '#fef5e7' },
+              { label: 'Study Goals', tags: profile.study_goals, color: '#2e7d32', bg: '#e8f5e9' },
+              { label: 'Looking For', tags: profile.looking_for, color: '#6a1b9a', bg: '#f3e5f5' }
+            ].map(group => group.tags && group.tags.length > 0 && (
+              <div key={group.label}>
+                <span className="label-caps block text-[0.6rem] text-outline mb-1">{group.label}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.tags.map((t: string) => (
+                    <span key={t} style={{
+                      background: group.bg, color: group.color, border: `1.2px solid ${group.color}`,
+                      padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, borderRadius: 12
+                    }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* ── Message Student Button ───────────────────────────── */}
+        {profile.dm_privacy !== 'no_one' && (
+          <MessageStudentButton
+            peerId={profile.id}
+            peerName={targetName}
+            dmPrivacy={profile.dm_privacy || 'everyone'}
+          />
+        )}
 
         {/* ── Back to Market Button ────────────────────────────── */}
         <Link href="/vault" style={{ textDecoration: 'none' }}>

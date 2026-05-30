@@ -10,6 +10,13 @@ interface Profile {
   year_of_study: number
   role: string
   avatar_url: string | null
+  bio?: string | null
+  interests?: string[] | null
+  skills?: string[] | null
+  study_goals?: string[] | null
+  looking_for?: string[] | null
+  profile_visibility?: string | null
+  dm_privacy?: string | null
 }
 
 interface Listing {
@@ -54,6 +61,79 @@ const DEPARTMENTS = [
   { value: 'ENG', label: 'English (S&H)' },
 ]
 
+interface TagEditorProps {
+  tags: string[]
+  onChange: (tags: string[]) => void
+  label: string
+  placeholder: string
+}
+
+function TagEditor({ tags, onChange, label, placeholder }: TagEditorProps) {
+  const [input, setInput] = useState('')
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      const val = input.trim().replace(/^,+|,+$/g, '')
+      if (val && !tags.includes(val)) {
+        if (tags.length >= 10) {
+          alert('You can add up to 10 tags only.')
+          return
+        }
+        onChange([...tags, val])
+        setInput('')
+      }
+    }
+  }
+
+  const handleRemove = (tag: string) => {
+    onChange(tags.filter(t => t !== tag))
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label className="label-caps mb-1 block" style={{ color: '#00595c', fontSize: '0.65rem', fontWeight: 800 }}>
+        {label} ({tags.length}/10)
+      </label>
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 8px',
+        background: '#FDFAF5', border: '1.5px solid #bec9c9', borderRadius: 2,
+        minHeight: 40, alignItems: 'center'
+      }}>
+        {tags.map(t => (
+          <span key={t} style={{
+            background: '#eafaf9', color: '#0d7377', border: '1.5px solid #0d7377',
+            padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, borderRadius: 20,
+            display: 'inline-flex', alignItems: 'center', gap: 4
+          }}>
+            {t}
+            <span 
+              onClick={() => handleRemove(t)} 
+              className="material-symbols-outlined" 
+              style={{ fontSize: 12, cursor: 'pointer', fontWeight: 800 }}
+            >
+              close
+            </span>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={tags.length < 10 ? placeholder : 'Max tags reached'}
+          disabled={tags.length >= 10}
+          style={{
+            border: 'none', outline: 'none', background: 'transparent',
+            flex: 1, minWidth: 100, fontSize: '0.8rem', color: '#1a1a1a',
+            fontFamily: 'var(--font-jakarta)'
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function ProfileClient({ profile, email, listings, gameSessions, isClubLead = false }: ProfileClientProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -61,6 +141,13 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
   const [editName, setEditName] = useState(profile.full_name)
   const [editDept, setEditDept] = useState(profile.department)
   const [editYear, setEditYear] = useState(profile.year_of_study)
+  const [editBio, setEditBio] = useState(profile.bio || '')
+  const [editInterests, setEditInterests] = useState<string[]>(profile.interests || [])
+  const [editSkills, setEditSkills] = useState<string[]>(profile.skills || [])
+  const [editStudyGoals, setEditStudyGoals] = useState<string[]>(profile.study_goals || [])
+  const [editLookingFor, setEditLookingFor] = useState<string[]>(profile.looking_for || [])
+  const [editVisibility, setEditVisibility] = useState(profile.profile_visibility || 'college')
+  const [editDmPrivacy, setEditDmPrivacy] = useState(profile.dm_privacy || 'everyone')
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
 
@@ -132,6 +219,13 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
           department: editDept,
           year_of_study: profile.role === 'student' ? editYear : undefined,
           avatar_url: finalAvatarUrl,
+          bio: editBio.trim(),
+          interests: editInterests,
+          skills: editSkills,
+          study_goals: editStudyGoals,
+          looking_for: editLookingFor,
+          profile_visibility: editVisibility,
+          dm_privacy: editDmPrivacy,
         }),
       })
       if (res.ok) {
@@ -142,6 +236,13 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
           department: editDept,
           year_of_study: profile.role === 'student' ? editYear : profile.year_of_study,
           avatar_url: finalAvatarUrl,
+          bio: editBio.trim(),
+          interests: editInterests,
+          skills: editSkills,
+          study_goals: editStudyGoals,
+          looking_for: editLookingFor,
+          profile_visibility: editVisibility,
+          dm_privacy: editDmPrivacy,
         })
         setShowEdit(false)
         router.refresh()
@@ -258,6 +359,66 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
         )}
       </div>
 
+      {/* ── Discoverability / Peer Info ─────────────────────────── */}
+      <div style={{
+        background: '#fbf9f4', border: '2px solid #00595c', padding: 20, borderRadius: 2,
+        boxShadow: '4px 4px 0 0 #00595c', marginBottom: 32
+      }}>
+        <h2 style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', color: '#00595c', letterSpacing: '0.05em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>diversity_3</span>
+          <span>Campus Connect Profile</span>
+        </h2>
+        
+        {profile.bio ? (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#6e7979', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Bio</div>
+            <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.85rem', color: '#1a1a1a', margin: 0, lineHeight: 1.4 }}>
+              {profile.bio}
+            </p>
+          </div>
+        ) : (
+          <p style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', color: '#6e7979', margin: '0 0 16px 0', fontStyle: 'italic' }}>
+            No bio added yet. Tell peers about your interests, skills, or what you are looking for!
+          </p>
+        )}
+
+        {[
+          { label: 'Interests', data: profile.interests },
+          { label: 'Skills', data: profile.skills },
+          { label: 'Study Goals', data: profile.study_goals },
+          { label: 'Looking For', data: profile.looking_for },
+        ].map(sect => sect.data && sect.data.length > 0 && (
+          <div key={sect.label} style={{ marginBottom: 12 }}>
+            <div style={{ color: '#6e7979', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>{sect.label}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {sect.data.map(t => (
+                <span key={t} style={{
+                  background: '#f0eee9', color: '#3e4949', border: '1.5px solid #3e4949',
+                  padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, borderRadius: 20
+                }}>
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, borderTop: '1px dashed #bec9c9', paddingTop: 12, marginTop: 12 }}>
+          <div>
+            <div style={{ color: '#6e7979', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Visibility</div>
+            <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 700, color: '#0d7377', textTransform: 'capitalize' }}>
+              {profile.profile_visibility || 'college'}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: '#6e7979', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>DM Privacy</div>
+            <div style={{ fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 700, color: '#855300', textTransform: 'capitalize' }}>
+              {profile.dm_privacy || 'everyone'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Action Buttons ─────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
         {/* Admin Portal — HOD and Principal only */}
@@ -328,6 +489,7 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
             border: '2px solid #00595c', borderBottom: 'none',
             boxShadow: '0 -6px 0 0 #00595c', padding: '24px 20px 32px',
             animation: 'slideUp 0.2s ease',
+            maxHeight: '85vh', overflowY: 'auto',
           }}>
             <style>{`@keyframes slideUp { from { transform: translateX(-50%) translateY(100%); } to { transform: translateX(-50%) translateY(0); } }`}</style>
 
@@ -529,6 +691,45 @@ export default function ProfileClient({ profile, email, listings, gameSessions, 
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Short Bio</label>
+                <textarea 
+                  className="cv-input" 
+                  value={editBio} 
+                  onChange={e => setEditBio(e.target.value)} 
+                  placeholder="Tell peers about yourself..."
+                  maxLength={250}
+                  rows={3}
+                  style={{ resize: 'none', height: 'auto' }}
+                />
+              </div>
+
+              <TagEditor tags={editInterests} onChange={setEditInterests} label="Interests" placeholder="e.g. AI/ML, UI/UX (Enter to add)" />
+              <TagEditor tags={editSkills} onChange={setEditSkills} label="Skills" placeholder="e.g. Python, Figma (Enter to add)" />
+              <TagEditor tags={editStudyGoals} onChange={setEditStudyGoals} label="Study Goals" placeholder="e.g. Hackathons, Placements (Enter to add)" />
+              <TagEditor tags={editLookingFor} onChange={setEditLookingFor} label="Looking For" placeholder="e.g. Study Partner, Projects (Enter to add)" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Profile Visibility</label>
+                  <select className="cv-input" value={editVisibility} onChange={e => setEditVisibility(e.target.value)}>
+                    <option value="college">College Only</option>
+                    <option value="public">Public</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-caps mb-1 block" style={{ color: '#00595c' }}>Direct DMs</label>
+                  <select className="cv-input" value={editDmPrivacy} onChange={e => setEditDmPrivacy(e.target.value)}>
+                    <option value="everyone">Everyone</option>
+                    <option value="college">College Only</option>
+                    <option value="same_department">Same Dept Only</option>
+                    <option value="no_one">No One</option>
+                  </select>
+                </div>
+              </div>
+
               {editError && <p style={{ color: '#ba1a1a', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem' }}>{editError}</p>}
               <button type="submit" disabled={editSaving} style={{
                 width: '100%', padding: '14px', background: '#fea619', border: '2px solid #00595c',

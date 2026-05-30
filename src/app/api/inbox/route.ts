@@ -3,8 +3,11 @@ import { requireAuth, getSupabaseClient } from "@/lib/auth-helpers";
 
 /**
  * GET /api/inbox
- * Fetches unified inbox items for the current user, combining marketplace
- * conversations and classroom direct messages (peer_messages), sorted by latest message date.
+ * Fetches unified inbox items for the current user, combining:
+ * 1. Marketplace conversations (kind: 'market')
+ * 2. Classroom direct messages (kind: 'classroom_dm')
+ * 3. General connect direct messages (kind: 'direct_dm')
+ * Sorted by latest message activity date.
  */
 export async function GET(req: NextRequest) {
   const result = await requireAuth();
@@ -90,7 +93,74 @@ export async function GET(req: NextRequest) {
       classroomDMs = Array.from(groupedDMs.values());
     }
 
-    // 4. Map marketplace conversations
+    // 4. Fetch general connect DMs
+    const { data: directConvs, error: dcError } = await supabase
+      .from("direct_conversations")
+      .select("*")
+      .or(`user_one.eq.${userId},user_two.eq.${userId}`);
+
+    if (dcError) {
+      return NextResponse.json({ error: dcError.message }, { status: 500 });
+    }
+
+    let directDMs: any[] = [];
+    if (directConvs && directConvs.length > 0) {
+      const otherUserIds = directConvs.map(dc => dc.user_one === userId ? dc.user_two : dc.user_one);
+      const { data: profiles, error: pError } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, role")
+        .in("id", otherUserIds);
+
+      if (pError) {
+        return NextResponse.json({ error: pError.message }, { status: 500 });
+      }
+
+      const profilesMap = new Map(profiles.map(p => [p.id, p]));
+      const convIds = directConvs.map(dc => dc.id);
+
+      const { data: dMsgs } = await supabase
+        .from("direct_messages")
+        .select("conversation_id, body, created_at, sender_id, receiver_id, read_at")
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: false });
+
+      const latestMsgMap = new Map();
+      const unreadCountsMap = new Map();
+
+      (dMsgs || []).forEach(m => {
+        if (!latestMsgMap.has(m.conversation_id)) {
+          latestMsgMap.set(m.conversation_id, m);
+        }
+        if (m.receiver_id === userId && m.read_at === null) {
+          const currentUnread = unreadCountsMap.get(m.conversation_id) || 0;
+          unreadCountsMap.set(m.conversation_id, currentUnread + 1);
+        }
+      });
+
+      directDMs = directConvs.map(dc => {
+        const otherUserId = dc.user_one === userId ? dc.user_two : dc.user_one;
+        const otherUser = profilesMap.get(otherUserId);
+        const latestMsg = latestMsgMap.get(dc.id);
+        const unreadCount = unreadCountsMap.get(dc.id) || 0;
+
+        return {
+          id: dc.id,
+          kind: "direct_dm",
+          title: otherUser?.full_name || "Anonymous",
+          subtitle: "General Connect DM",
+          otherUserId: otherUserId,
+          otherUserName: otherUser?.full_name || "Anonymous",
+          otherUserAvatar: otherUser?.avatar_url || null,
+          otherUserRole: otherUser?.role || "student",
+          lastMessage: latestMsg?.body || "No messages yet.",
+          lastMessageAt: latestMsg?.created_at || dc.created_at,
+          conversationId: dc.id,
+          unreadCount: unreadCount,
+        };
+      });
+    }
+
+    // 5. Map marketplace conversations
     const marketInbox = (conversations ?? []).map((conv) => {
       const isBuyer = conv.buyer_id === userId;
       const otherUser = isBuyer ? conv.seller : conv.buyer;
@@ -110,8 +180,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 5. Merge and sort by lastMessageAt descending
-    const mergedInbox = [...marketInbox, ...classroomDMs].sort((a, b) => {
+    // 6. Merge all three DM sources and sort by latest activity
+    const mergedInbox = [...marketInbox, ...classroomDMs, ...directDMs].sort((a, b) => {
       return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
     });
 

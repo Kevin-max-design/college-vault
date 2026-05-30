@@ -26,6 +26,7 @@ export type NotificationCategory =
   | 'material_upload'
   | 'doubt_resolved'
   | 'classroom_message'
+  | 'direct_message'
   | 'general';
 
 export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
@@ -36,7 +37,8 @@ export type NotificationSource =
   | 'faculty'
   | 'system'
   | 'market'
-  | 'classroom';
+  | 'classroom'
+  | 'connect';
 
 export interface CreateNotificationParams {
   userId: string;

@@ -58,6 +58,7 @@ const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }
   classroom_reply: { icon: 'forum', color: '#0d7377', bg: '#eafaf9' },
   material_upload: { icon: 'upload_file', color: '#2e7d32', bg: '#e8f5e9' },
   doubt_resolved: { icon: 'check_circle', color: '#1b5e20', bg: '#e8f5e9' },
+  direct_message: { icon: 'chat', color: '#e65100', bg: '#fff3e0' },
   general: { icon: 'notifications', color: '#3e4949', bg: '#f0eee9' },
 }
 
@@ -1070,6 +1071,10 @@ export default function AppShell({
               <Link href="/clubs" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/clubs') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>groups</span>
                 Clubs
+              </Link>
+              <Link href="/connect" onClick={() => setSidebarOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 4, background: pathname.startsWith('/connect') ? '#EAE4D8' : 'transparent', color: '#00595c', fontFamily: 'var(--font-jakarta)', fontSize: '0.8rem', fontWeight: 800, border: '1px solid transparent' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>diversity_3</span>
+                Connect Peers
               </Link>
 
               {/* Conditionally Render Admin Portal Link */}

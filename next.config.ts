@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         destination: '/vault',
         permanent: true,
       },
+      {
+        source: '/inbox',
+        destination: '/vault',
+        permanent: true,
+      },
     ]
   },
 }

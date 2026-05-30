@@ -14,6 +14,10 @@ const DirectChatWidget = dynamic(() => import('@/app/components/DirectChatWidget
   ssr: false,
 })
 
+const DirectDMWidget = dynamic(() => import('@/app/components/DirectDMWidget'), {
+  ssr: false,
+})
+
 interface Seller {
   id: string
   full_name: string
@@ -77,6 +81,11 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
     recipientId: string
     recipientHandle: string
   } | null>(null)
+  const [activeDirectDMChat, setActiveDirectDMChat] = useState<{
+    conversationId: string;
+    recipientId: string;
+    recipientName: string;
+  } | null>(null)
 
   // Parse query params to auto-open classroom DMs or select views
   useEffect(() => {
@@ -111,6 +120,24 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
           try {
             localStorage.setItem(`cv_chat_last_seen_${classroomId}_${userIdParam}`, new Date().toISOString())
           } catch(e) {}
+        }
+      } else if (typeParam === 'direct_dm') {
+        const conversationId = params.get('conversationId')
+        const recipientName = params.get('recipientName') || 'Peer'
+        const recipientId = params.get('recipientId') || ''
+        if (conversationId) {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('type')
+          url.searchParams.delete('conversationId')
+          url.searchParams.delete('recipientName')
+          url.searchParams.delete('recipientId')
+          window.history.replaceState({}, '', url.toString())
+
+          setActiveDirectDMChat({
+            conversationId,
+            recipientId,
+            recipientName: decodeURIComponent(recipientName)
+          })
         }
       }
     }
@@ -262,10 +289,37 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
       )
       .subscribe()
 
+    const directDmChannel = supabaseClient
+      .channel('realtime-direct-dm')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'direct_conversations',
+        },
+        () => {
+          fetchConversations()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+        },
+        () => {
+          fetchConversations()
+        }
+      )
+      .subscribe()
+
     return () => {
       supabaseClient.removeChannel(conversationsChannel)
       supabaseClient.removeChannel(peerSenderChannel)
       supabaseClient.removeChannel(peerReceiverChannel)
+      supabaseClient.removeChannel(directDmChannel)
     }
   }, [currentUser.id, fetchConversations])
 
@@ -910,6 +964,12 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                           recipientName: item.otherUserName,
                           listingTitle: item.title
                         })
+                      } else if (item.kind === 'direct_dm') {
+                        setActiveDirectDMChat({
+                          conversationId: item.conversationId,
+                          recipientId: item.otherUserId,
+                          recipientName: item.otherUserName
+                        })
                       } else {
                         // Open classroom DM
                         try {
@@ -946,7 +1006,7 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                     }}
                   >
                     {/* Unread indicator dot */}
-                    {isUnreadClassroomDM && (
+                    {(isUnreadClassroomDM || (item.kind === 'direct_dm' && item.unreadCount > 0)) && (
                       <span style={{
                         position: 'absolute',
                         top: 16,
@@ -977,17 +1037,38 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
                         
                         {/* Kind Badge */}
                         <span style={{
-                          background: item.kind === 'market' ? (item.subtitle === 'Buying' ? '#e8f5f5' : '#fef5e7') : '#eafaf9',
-                          color: item.kind === 'market' ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') : '#0d7377',
-                          border: `1.5px solid ${item.kind === 'market' ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') : '#0d7377'}`,
+                          background: item.kind === 'market' 
+                            ? (item.subtitle === 'Buying' ? '#e8f5f5' : '#fef5e7') 
+                            : (item.kind === 'direct_dm' ? '#fff3e0' : '#eafaf9'),
+                          color: item.kind === 'market' 
+                            ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') 
+                            : (item.kind === 'direct_dm' ? '#e65100' : '#0d7377'),
+                          border: `1.5px solid ${item.kind === 'market' 
+                            ? (item.subtitle === 'Buying' ? '#00595c' : '#855300') 
+                            : (item.kind === 'direct_dm' ? '#e65100' : '#0d7377')}`,
                           padding: '1px 6px',
                           fontSize: '0.55rem',
                           fontWeight: 800,
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em'
                         }}>
-                          {item.kind === 'market' ? item.subtitle : 'Classroom DM'}
+                          {item.kind === 'market' 
+                            ? item.subtitle 
+                            : (item.kind === 'direct_dm' ? 'General DM' : 'Classroom DM')}
                         </span>
+
+                        {item.kind === 'direct_dm' && item.unreadCount > 0 && (
+                          <span style={{
+                            background: '#ba1a1a',
+                            color: '#ffffff',
+                            borderRadius: '10px',
+                            padding: '1px 6px',
+                            fontSize: '0.55rem',
+                            fontWeight: 800
+                          }}>
+                            {item.unreadCount} new
+                          </span>
+                        )}
 
                         {/* Role Badge */}
                         {item.otherUserRole && item.otherUserRole !== 'student' && (
@@ -1207,6 +1288,18 @@ export default function VaultClient({ currentUser, initialListings }: ProjectsCl
             setActiveClassroomChat(null)
           }}
           classroomId={activeClassroomChat.classroomId}
+        />
+      )}
+
+      {activeDirectDMChat && (
+        <DirectDMWidget
+          conversationId={activeDirectDMChat.conversationId}
+          receiverName={activeDirectDMChat.recipientName}
+          receiverId={activeDirectDMChat.recipientId}
+          onClose={() => {
+            fetchConversations()
+            setActiveDirectDMChat(null)
+          }}
         />
       )}
 
